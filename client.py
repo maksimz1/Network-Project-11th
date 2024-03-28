@@ -23,7 +23,7 @@ class Weapon(Entity):
 		# Initialize the weapon's model, texture, and position in the player's hand
 		self.parent = camera_pivot
 		self.weapon_type = weapon_type
-		self.position = Vec3(0.6, -0.5, 1) + position
+		self.position = Vec3(0.4, -0.3, 0.6) + position
 		self.scale = scale
 		self.rotation = Vec3(0, 90, 0)+ rotation
 		self.damage = damage
@@ -43,15 +43,11 @@ class Weapon(Entity):
 
 			invoke(setattr, self, 'on_cooldown', False, delay=0.2/self.fire_rate)
 			from ursina.prefabs.ursfx import ursfx
-			ursfx([(0.0, 0.0), (0.1, 0.9), (0.15, 0.75), (0.3, 0.14), (0.6, 0.0)], volume=0.5, wave='noise', pitch=random.uniform(-13,-12), pitch_change=-12, speed=3.0)
+			ursfx([(0.0, 0.0), (0.1, 0.9), (0.15, 0.75), (0.3, 0.14), (0.6, 0.0)], volume=0.6, wave='noise', pitch=random.uniform(-13,-12), pitch_change=-12, speed=3.0)
 	
 	def check_hit(self):
 		# Get direction of crosshair
 		shoot_direction = camera.forward
-		# Check if the weapon hit any player
-		# print(f"Shooting {self.weapon_type}")
-		# print(f"Camera position: {camera.position}")
-		# print(f"Camera position word: {camera.world_position}")
 		hit_info = raycast(camera.world_position, shoot_direction, distance=100, ignore=[self, camera],debug=True )		
 		if hit_info.hit:
 			# print(f"Hit {hit_info.entity.name} for {self.damage} damage")
@@ -115,10 +111,15 @@ class Player(Entity):
 
 	def check_state(self):
 		self.prev_state = self.state
-		if self.controller.position != self.prev_location:
+		distance = self.controller.position - self.prev_location
+		if abs(distance.x) > 0.001 or abs(distance.z) > 0.001 and self.controller.grounded:
 			self.state = "moving"
+		elif self.controller.position != self.prev_location and not self.controller.grounded:
+			self.state = "airborne"
 		else:
 			self.state = "idle"
+
+		# print(self.state)
 	
 	def equip_weapon(self, index=0):
 		# If the player has the weapon equipped, unequip it
@@ -152,8 +153,6 @@ class Player(Entity):
 	def send_location_update(self):
 		player_pos = self.controller.position
 		player_rot = self.controller.rotation
-
-		# Check player state
 		
 		request = json.dumps(
 			{
@@ -246,25 +245,28 @@ class Player(Entity):
 			self.change_fov(80)
 			self.controller.speed = 5
 
-		
-
 		self.prev_location = self.controller.position
 		self.prev_rotation = self.controller.rotation
 
 class OtherPlayer(Entity):
-	def __init__(self, player_id, player_pos, player_rotation, player_model):
+	def __init__(self, player_id, player_pos, player_rotation, player_model = None):
 		super().__init__()
+		self.actor = Actor('Assets/Models/Chicken.gltf')
+		self.actor.reparent_to(self)
 		self.player_id = player_id
 		self.position = player_pos
-		self.rotation = player_rotation
-		self.model = player_model
+		self.rotation = Vec3(player_rotation[0], player_rotation[1] + 180, player_rotation[2])
+		
+		self.state = "idle"
 		self.collider = 'mesh'
 		self.scale = PLAYER_SCALE
 		self.name = "Player " + str(player_id)
 
-		self.weapons_inventory = {"Pistol": Pistol(self, scale=(1,1,1), position=(0.3,1,0), rotation=(0,0,0))}
+		self.weapons_inventory = {"Pistol": Pistol(self, scale=0.7, position=(0.25,1.2,-0.3), rotation=(0,0,0))}
 		self.current_weapon = None
 		self.enabled = True
+		self.actor.loop('Idle')
+		invoke(self.actor.loop, 'Run', delay=5)
 
 class Client():
 	def __init__(self):
@@ -290,8 +292,7 @@ class Client():
 						pass
 	
 	def add_player(self, player_id, player_pos, player_rotation):
-		chicken_model = load_model(r'Assets\Models\Chicken.obj')
-		self.player.connected_players[player_id] = OtherPlayer(player_id, player_pos, player_rotation, chicken_model)
+		self.player.connected_players[player_id] = OtherPlayer(player_id, player_pos, player_rotation)
 	
 
 	def handle_request(self, data):
@@ -306,8 +307,11 @@ class Client():
 			if data['player_id'] == self.player.player_id:
 				return
 			print(f"New player connected {data['player_id']}")
-			self.add_player(data['player_id'], data['player_pos'], data['player_rotation'])
-			print(f"Player {data['player_id']} connected")
+			player_id = data['player_id']
+			player_pos = Vec3(data['player_pos'][0], data['player_pos'][1], data['player_pos'][2])
+			player_rot = Vec3(data['player_rotation'][0], data['player_rotation'][1], data['player_rotation'][2])
+			self.add_player(player_id,player_pos, player_rot)
+			print(f"Player {player_id} connected")
 
 		elif data['request'] == 'players_list':
 			for player in data['players']:
@@ -322,8 +326,21 @@ class Client():
 				self.add_player(data['player_id'], data['player_pos'], data['player_rotation'])
 
 			player_id = data['player_id']
+			player_state = data['player_state']
 			self.player.connected_players[player_id].position = data['player_pos']
 			self.player.connected_players[player_id].rotation = data['player_rotation']
+
+			if player_state == "moving" and self.player.connected_players[player_id].state != "moving":
+				self.player.connected_players[player_id].actor.loop('Run')
+				self.player.connected_players[player_id].state = "moving"
+
+			elif player_state == "idle" and self.player.connected_players[player_id].state != "idle":
+				self.player.connected_players[player_id].actor.loop('Idle')
+				self.player.connected_players[player_id].state = "idle"
+
+			elif player_state == "airborne" and self.player.connected_players[player_id].state != "airborne":
+				self.player.connected_players[player_id].actor.loop('Idle')
+				self.player.connected_players[player_id].state = "airborne"
 		
 		elif data['request'] == 'player_disconnect':
 			player_id = data['player_id']

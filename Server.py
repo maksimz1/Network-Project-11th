@@ -55,8 +55,10 @@ class Server():
 			player_id = data['player_id']
 			player_pos = data['player_pos']
 			player_rot = data['player_rotation']
+			player_state = data['player_state']
 			self.connected_players[player_id].pos = player_pos
 			self.connected_players[player_id].rot = player_rot
+			self.connected_players[player_id].state = player_state
 			self.broadcast_player_location(self.connected_players[player_id])
 
 		elif data['request'] == 'disconnect':
@@ -104,7 +106,9 @@ class Server():
 				"request": "update_player_location",
 				"player_id": data.id,
 				"player_pos": data.pos,
-				"player_rotation": data.rot
+				"player_rotation": data.rot,
+				"player_state": data.state
+
 			}
 		)
 
