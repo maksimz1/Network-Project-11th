@@ -1,5 +1,6 @@
 from ursina import *
 from ursina.prefabs.first_person_controller import FirstPersonController
+from ursina.prefabs.health_bar import HealthBar
 import socket
 import threading
 import json
@@ -26,7 +27,7 @@ def cam2gun_rot(camera_rot):
     return gun_rot
 # Class for the player's weapon
 class Weapon(Entity):
-	def __init__(self, camera_pivot, damage, fire_rate, ammo, magazine_size ,weapon_type ,position , rotation ,muzzle_position, scale = (0.4, 0.4, 0.4) ):
+	def __init__(self, camera_pivot, damage, fire_rate, ammo, magazine_size, recoil ,weapon_type ,position , rotation ,muzzle_position, fire_mode, scale = (0.4, 0.4, 0.4)):
 		super().__init__()
 		# Initialize the weapon's model, texture, and position in the player's hand
 		self.parent = camera_pivot
@@ -45,7 +46,10 @@ class Weapon(Entity):
 		self.magazine_size = magazine_size
 		self.current_ammo = self.magazine_size
 		self.on_cooldown = False
+		self.recoil = recoil
 		self.enabled = False
+
+		self.fire_mode = fire_mode
 
 		self.ammo_text = Text(text=f'{self.current_ammo}/{self.ammo}', position=(-0.6,-0.3), scale=1)
 		self.ammo_text.enabled = False
@@ -57,8 +61,8 @@ class Weapon(Entity):
 	def shoot(self):
 		if not self.on_cooldown:
 			if self.current_ammo == 0:
-				self.reload()
-				return
+				# self.reload()
+				return False
 			self.current_ammo -= 1
 			self.ammo_text.text = f'{self.current_ammo}/{self.ammo}'
 			hit_info = self.check_hit()
@@ -67,6 +71,8 @@ class Weapon(Entity):
 
 			invoke(setattr, self, 'on_cooldown', False, delay=0.2/self.fire_rate)
 			return hit_info
+		else:
+			return False
 		
 	def display_muzzle_flash(self):
 		self.muzzle.enabled = True
@@ -80,9 +86,13 @@ class Weapon(Entity):
 				if type(hit_info.entity).__name__ == 'OtherPlayer':
 					return hit_info.entity.player_id
 
-		return False
+		return None
 			
 	def reload(self):
+		self.on_cooldown = True
+
+		invoke(setattr, self, 'on_cooldown', False, delay=1)
+
 		ammo_needed = self.magazine_size - self.current_ammo
 		if self.ammo == 0:
 			return
@@ -96,9 +106,37 @@ class Weapon(Entity):
 		self.current_ammo = self.magazine_size
 		self.ammo_text.text = f'{self.current_ammo}/{self.ammo}'
 	
+	def calc_recoil(self):
+		value = random.randrange(-self.recoil * 10, self.recoil * 10)
+		return value / 10
 
+
+class UI_Handler(Entity):
+	
+	def __init__(self, player):
+		super().__init__(
+			parent = camera.ui,                                                                                   
+			)
+		self.player = player
 		
 		
+		self.health_bar = HealthBar(max_value = player.health)
+		self.ammo_text = Text(text=f'', position=(-0.6,-0.3), scale=1)
+
+	def update(self):
+		if self.health_bar.value != self.player.health:
+			self.health_bar.value = self.player.health
+	
+	def show_ammo(self):
+		self.ammo_text.enabled = True
+	
+	def hide_ammo(self):
+		self.ammo_text.enabled = False
+	
+	def update_ammo(self):
+		self.ammo_text.text = f'{self.player.current_weapon.current_ammo}/{self.player.current_weapon.ammo}'
+
+
 class Pistol(Weapon):
 	def __init__(self, camera_pivot,muzzle_position, position = (0,0,0), rotation = (0,0,0), scale = (0.3, 0.3, 0.3)):
 		super().__init__(camera_pivot,
@@ -107,11 +145,25 @@ class Pistol(Weapon):
 					ammo = WEAPONS["Pistol"]["ammo"],
 					magazine_size = WEAPONS["Pistol"]["magazine_size"],
 					weapon_type = "Pistol",
-					position=position, rotation=rotation, scale=scale, muzzle_position=muzzle_position)
+					recoil = WEAPONS["Pistol"]["recoil"],
+					position=position, rotation=rotation, scale=scale, muzzle_position=muzzle_position,
+					fire_mode="semi")
 					
 		self.model = 'Assets/Models/Pistol.obj'
 		
-
+class AssaultRifle(Weapon):
+	def __init__(self, camera_pivot,muzzle_position, position = (0,0,0), rotation = (0,0,0), scale = (0.3, 0.3, 0.3)):
+		super().__init__(camera_pivot,
+					damage = WEAPONS["Assault Rifle"]["damage"],
+					fire_rate = WEAPONS["Assault Rifle"]["fire_rate"],
+					ammo = WEAPONS["Assault Rifle"]["ammo"],
+					magazine_size = WEAPONS["Assault Rifle"]["magazine_size"],
+					weapon_type = "Assault Rifle",
+					recoil = WEAPONS["Assault Rifle"]["recoil"],
+					position=position, rotation=rotation, scale=scale, muzzle_position=muzzle_position,
+					fire_mode="full")
+					
+		self.model = 'Assets/Models/Assault.obj'
 
 
 class Player(Entity):
@@ -128,7 +180,8 @@ class Player(Entity):
 		self.prev_state = "idle"
 		self.health = 100
 
-		self.weapon_inventory = [Pistol(self.controller.camera_pivot, muzzle_position=constants.MUZZLE_FLASH_LOCATION_PISTOL)]
+		self.weapon_inventory = [Pistol(self.controller.camera_pivot, muzzle_position=constants.MUZZLE_FLASH_LOCATION_RIFLE),
+						    AssaultRifle(self.controller.camera_pivot, muzzle_position=constants.MUZZLE_FLASH_LOCATION_RIFLE)]
 		self.current_weapon = None
 	
 		self.create_ground()
@@ -138,13 +191,15 @@ class Player(Entity):
 		self.game_running = True
 		
 		self.connected_players = {}
+
+		self.ui_handler = UI_Handler(self)
 		
 
 	def create_connection(self):
 
 		# Create a UDP socket and connect to the server
 		self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		self.sock.settimeout(0.01)
+		self.sock.settimeout(5)
 		self.sock.connect((SERVER_IP, SERVER_UDP_PORT))
 		self.send_hello()
 		# Save the player's ID
@@ -172,7 +227,6 @@ class Player(Entity):
 		else:
 			self.state = "idle"
 
-		# print(self.state)
 	
 	def equip_weapon(self, index=0):
 		if index >= len(self.weapon_inventory):
@@ -181,7 +235,7 @@ class Player(Entity):
 		# If the player has the weapon equipped, unequip it
 		if self.current_weapon == self.weapon_inventory[index]:
 			self.current_weapon.enabled = False
-			self.current_weapon.ammo_text.enabled = False
+			self.ui_handler.hide_ammo()
 			self.current_weapon = None
 			
 
@@ -190,13 +244,14 @@ class Player(Entity):
 			self.current_weapon.enabled = False
 			self.current_weapon = self.weapon_inventory[index]
 			self.current_weapon.enabled = True
-			self.current_weapon.ammo_text.enabled = True
+			self.ui_handler.update_ammo()
 
 		# Equip the weapon
 		elif self.weapon_inventory[index] is not None:
 			self.current_weapon = self.weapon_inventory[index]
 			self.current_weapon.enabled = True
-			self.current_weapon.ammo_text.enabled = True
+			self.ui_handler.show_ammo()
+			self.ui_handler.update_ammo()
 
 		else:
 			return None
@@ -296,13 +351,14 @@ class Player(Entity):
 		if key == '3':
 			self.equip_weapon(2)
 		
+		if key == 'r':
+			self.current_weapon.reload()
+			invoke(self.ui_handler.update_ammo, delay=1)
+			
+		
 		if key == 'left mouse down':
 			if self.current_weapon is not None:
-				shoot_data = self.current_weapon.shoot()
-				if shoot_data is not None:
-					hit_player = shoot_data
-					request = self.build_request("shoot", hit_player=hit_player)
-					self.sock.sendall(request.encode())
+				self.shoot_weapon()
 		
 	def update(self):
 		
@@ -320,11 +376,32 @@ class Player(Entity):
 			# Reset the player speed and fov
 			self.change_fov(80)
 			self.controller.speed = 5
+		
+		# Handle full auto weapons
+		if held_keys['left mouse']:
+			if self.current_weapon is not None:
+				if self.current_weapon.fire_mode == "full":
+					
+					if self.current_weapon is not None:
+						self.shoot_weapon()
 
 		self.prev_location = self.controller.position
 		self.prev_rotation = self.controller.rotation
 	
-	
+	def shoot_weapon(self):
+		if self.current_weapon is not None:
+				shoot_data = self.current_weapon.shoot()
+				# shoot_data meaning:
+				# False - Didn't shoot
+				# None - Hit nothing
+				# dictionary - Hit
+				self.ui_handler.update_ammo()
+				
+				if shoot_data is not False:
+					request = self.build_request("shoot", hit_player=shoot_data)
+					self.sock.sendall(request.encode())
+				
+
 	def death_screen(self):
 		# Create a death screen
 		death_screen = Entity(model='quad', scale=(2, 1), color=color.black, z=-1)
@@ -469,12 +546,13 @@ class Client():
 			if isinstance(hit_player, int):
 				if hit_player != self.player.player_id:
 					if hit_player in self.player.connected_players:
+						hit_player_obj = self.player.connected_players[hit_player]
 						print(f"Player {player_id} shot player {hit_player} with weapon {weapon_type}")
 						
-						if self.player.connected_players[hit_player].health > 0:
-							self.player.connected_players[hit_player].health -= WEAPONS[weapon_type]['damage']
-							if self.player.connected_players[hit_player].health <= 0:
-								self.player.connected_players[hit_player].enabled = False
+						if hit_player_obj.health > 0:
+							hit_player_obj.health -= WEAPONS[weapon_type]['damage']
+							if hit_player_obj.health <= 0:
+								hit_player_obj.enabled = False
 								del self.player.connected_players[hit_player]
 								print(f"Player {hit_player} has been killed")
 						else:
@@ -510,7 +588,8 @@ class OtherPlayer(Entity):
 		self.name = str(player_id)
 
 		self.health = 100
-		self.weapons_inventory = {"Pistol": Pistol(self,muzzle_position=constants.MUZZLE_FLASH_LOCATION_PISTOL_OTHER, scale=0.7, position=(0.25,1.2,-0.3), rotation=(0,0,0))}
+		self.weapons_inventory = {"Pistol": Pistol(self,muzzle_position=constants.MUZZLE_FLASH_LOCATION_PISTOL_OTHER, scale=0.7, position=(0.25,1.2,-0.3), rotation=(0,0,0)),
+							 "Assault Rifle": AssaultRifle(self,muzzle_position=constants.MUZZLE_FLASH_LOCATION_RIFLE_OTHER, scale=0.7, position=(0.25,1.2,-0.3), rotation=(0,0,0))}
 		self.current_weapon = None
 		self.enabled = True
 	
