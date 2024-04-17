@@ -18,7 +18,7 @@ class Weapon(Entity):
 		self.muzzle = Entity(parent=self, model='cube', scale=.2,rotation = (0,-90,45), color=color.yellow)
 
 		# self.muzzle = Entity(parent=self, model='quad', scale=(2,2,2), position = (-0.05,0.6,-1.45), color=color.yellow)
-
+        
 		self.rotation = rotation + constants.WEAPON_ROTATION_OFFSET
 		self.damage = damage
 		self.fire_rate = fire_rate
@@ -30,6 +30,7 @@ class Weapon(Entity):
 		self.enabled = False
 		self.shader = colored_lights_shader
 
+		self.color = color.white
 		self.fire_mode = fire_mode
 
 		self.ammo_text = Text(text=f'{self.current_ammo}/{self.ammo}', position=(-0.6,-0.3), scale=1)
@@ -37,6 +38,9 @@ class Weapon(Entity):
 		
 		self.muzzle.position = (muzzle_position*self.scale)
 		self.muzzle.enabled = False
+
+
+
 		
 	# Function to shoot the weapon
 	def shoot(self):

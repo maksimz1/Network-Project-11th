@@ -1,17 +1,20 @@
 from ursina import *
 from ursina.prefabs.first_person_controller import FirstPersonController
 from ursina.prefabs.health_bar import HealthBar
+import ursina.shader
 from ursina.shaders import *
 import socket
 import threading
 import json
 from ursina import Entity
 from direct.actor.Actor import Actor
-import random
 from OpenGL.GL import *
-from panda3d.core import DirectionalLight as panda_DirectionalLight
+import ursina.shaders
 from Weapon import *
 import constants
+from direct.filter.CommonFilters import CommonFilters
+
+lit_with_shadows_shader.default_input['shadow_color'] = hsv(225, .24, .67, .65)
 
 app = Ursina(borderless=False, fullscreen=False, window_title='Client', vsync=False)
 SERVER_IP = '127.0.0.1'
@@ -320,24 +323,24 @@ class Client():
 
 	def create_environment(self):
 		
-		# AmbientLight(color = color.rgba(100, 100, 100, 0.3))
-  
-		# Set all objects in the scene to use shadows as default
-		Entity.default_shader = lit_with_shadows_shader
 
 		# Create the "sun" for the shadows
-		sun = DirectionalLight(shadows=True,shadow_map_resolution=(4048 ,4048 ))
+		sun = DirectionalLight(shadows=True,shadow_map_resolution=(2048 ,2048))
 		sun.look_at(Vec3(1,-1,-1))
 		
+		
 		# Create the map itself, with a collider
-		ground = Entity(model="Assets/Models/Map/map1.obj", scale=(1,1,1), position=(0, 0, 0))
-		ground_collider = Entity(parent = ground, model="Assets/Models/Map/map_collider.obj", scale=(1,1,1), collider = "mesh")
-		ground_collider.visible = False
+		# ground = Entity(model="Assets/Models/Map/map_ground.obj", scale=(1,1,1), position=(0, 0.1, 0), shader=lit_with_shadows_shader, collider = 'mesh')
+		# map = Entity(model="Assets/Models/Map/map1.obj", scale=(1,1,1), position=(0, 0, 0), shader=colored_lights_shader)
+		# map_collider = Entity(model="Assets/Models/Map/map_collider.obj", scale=(1,1,1), collider = "mesh")
+		# map_collider.visible = False
+
+		map = Entity(model="Assets/Models/Map/map2.obj", scale=(1,1,1), position=(0, -10, 0), shader=lit_with_shadows_shader)
+		map_collider = Entity(model="Assets/Models/Map/map2.obj", scale=(1,1,1), position=(0, -10, 0), collider = "mesh")
+		map_collider.visible = False
 
 		# Create sky visuals
 		Sky()
-
-
 		
 	
 	def listen(self):
@@ -487,10 +490,11 @@ class Client():
 class OtherPlayer(Entity):
 	def __init__(self, player_id, player_pos, player_rotation):
 		super().__init__()
-		# self.shader = lit_with_shadows_shader
+		self.shader = colored_lights_shader
 		self.actor = Actor('Assets/Models/Chicken.gltf')
 		self.actor.reparent_to(self)
-		setShader(self.actor, lit_with_shadows_shader)
+		
+		
 		self.player_id = player_id
 		self.position = player_pos
 		self.rotation = Vec3(player_rotation[0], player_rotation[1], player_rotation[2])
@@ -519,7 +523,6 @@ class OtherPlayer(Entity):
 
 def main():
 	client = Client()
-	
 	app.run()
 	
 if __name__ == '__main__':
