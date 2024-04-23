@@ -28,6 +28,10 @@ class Server():
 		self.sock.bind((HOST_IP, HOST_UDP_PORT))
 		print("Server started")
 
+		self.keep_alive_thread = threading.Thread(target=self.keep_alive)
+		self.keep_alive_thread.start()
+
+
 	def handle_request(self, data, addr):
 		# print(f"Recieved data from {addr}")
 		# print(data)
@@ -217,6 +221,7 @@ class Server():
 	def keep_alive(self):
 		# Send keep alive to players, prevent timeout when no data is sent
 		while True:
+			print(self.connected_players)
 			for player in self.connected_players.values():
 				request = json.dumps(
 					{

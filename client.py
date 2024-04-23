@@ -333,6 +333,7 @@ class Client():
 		sun.look_at(Vec3(1,-1,-1))
 		
 		
+		
 		# Create the map itself, with a collider
 		# ground = Entity(model="Assets/Models/Map/map_ground.obj", scale=(1,1,1), position=(0, 0.1, 0), shader=lit_with_shadows_shader, collider = 'mesh')
 		# map = Entity(model="Assets/Models/Map/map1.obj", scale=(1,1,1), position=(0, 0, 0), shader=colored_lights_shader)

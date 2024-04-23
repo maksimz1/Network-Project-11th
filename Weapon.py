@@ -28,7 +28,7 @@ class Weapon(Entity):
 		self.on_cooldown = False
 		self.recoil = recoil
 		self.enabled = False
-		self.shader = colored_lights_shader	
+		self.shader = lit_with_shadows_shader
 
 		self.color = color.white
 		self.fire_mode = fire_mode
@@ -102,6 +102,7 @@ class Weapon(Entity):
 
 		print((value_x, value_y))
 		return (value_x, value_y)
+	
 
 class Pistol(Weapon):
 	def __init__(self, camera_pivot,muzzle_position, position = (0,0,0), rotation = (0,0,0), scale = (0.3, 0.3, 0.3)):
@@ -116,6 +117,7 @@ class Pistol(Weapon):
 					fire_mode="semi")
 					
 		self.model = 'Assets/Models/Pistol.obj'
+		self.texture = 'Assets/Textures/pistol.png'
 		
 
 		
@@ -132,4 +134,5 @@ class AssaultRifle(Weapon):
 					fire_mode="full")
 		
 		
-		self.model = 'Assets/Models/Assault.obj'
+		self.model = 'Assets/Models/ak.obj'
+		self.texture = 'Assets/Textures/ak.png'
