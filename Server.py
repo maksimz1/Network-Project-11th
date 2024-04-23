@@ -2,6 +2,7 @@ import socket
 import threading
 import json
 import constants
+import time
 
 WEAPONS = constants.WEAPONS
 HOST_IP = '0.0.0.0'
@@ -213,7 +214,17 @@ class Server():
 				# Handle the request
 				self.handle_request(data, addr)
 
-
+	def keep_alive(self):
+		# Send keep alive to players, prevent timeout when no data is sent
+		while True:
+			for player in self.connected_players.values():
+				request = json.dumps(
+					{
+						"request": "keep_alive"
+					}
+				)
+				self.sock.sendto(request.encode(), player.address)
+			time.sleep(constants.KEEP_ALIVE_TIME)
 
 
 def main():

@@ -1,18 +1,16 @@
 from ursina import *
 from ursina.prefabs.first_person_controller import FirstPersonController
 from ursina.prefabs.health_bar import HealthBar
-import ursina.shader
 from ursina.shaders import *
 import socket
 import threading
 import json
 from ursina import Entity
 from direct.actor.Actor import Actor
-from OpenGL.GL import *
-import ursina.shaders
 from Weapon import *
 import constants
 from direct.filter.CommonFilters import CommonFilters
+import Shaders
 
 lit_with_shadows_shader.default_input['shadow_color'] = hsv(225, .24, .67, .65)
 
@@ -95,7 +93,7 @@ class Player(Entity):
 
 		# Create a UDP socket and connect to the server
 		self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		self.sock.settimeout(5)
+		self.sock.settimeout(constants.TIMEOUT_TIME)
 		self.sock.connect((SERVER_IP, SERVER_UDP_PORT))
 		self.send_hello()
 		# Save the player's ID
@@ -254,7 +252,8 @@ class Player(Entity):
 				self.shoot_weapon()
 		
 	def update(self):
-		
+		if not self.game_running:
+			application.quit()
 		self.check_state()
 
 		if self.state != self.prev_state or self.controller.position != self.prev_location or self.controller.rotation != self.prev_rotation:
@@ -277,13 +276,15 @@ class Player(Entity):
 					
 					if self.current_weapon is not None:
 						self.shoot_weapon()
+						
 
 		self.prev_location = self.controller.position
 		self.prev_rotation = self.controller.rotation
 	
 	def shoot_weapon(self):
 		if self.current_weapon is not None:
-				shoot_data = self.current_weapon.shoot()
+				
+				shoot_data = self.current_weapon.shoot(self.controller)
 				# shoot_data meaning:
 				# False - Didn't shoot
 				# None - Hit nothing
@@ -291,6 +292,10 @@ class Player(Entity):
 				self.ui_handler.update_ammo()
 				
 				if shoot_data is not False:
+					calc_recoil = self.current_weapon.calc_recoil()
+					self.controller.animate('rotation_x', self.controller.rotation_x + calc_recoil[0], duration=0.01)
+					self.controller.animate('rotation_y', self.controller.rotation_y + calc_recoil[1], duration=0.01)
+	 				# print(f"rotation_x: {self.controller.rotation_x}, rotation_y: {self.controller.rotation_y}")
 					request = self.build_request("shoot", hit_player=shoot_data)
 					self.sock.sendall(request.encode())
 				
@@ -308,7 +313,7 @@ class Player(Entity):
 		request = self.build_request("disconnect")
 		self.sock.sendall(request.encode())
 		# Closes the application on client side, lets server side know of disconnect
-		application.quit()
+		self.game_running = False
 
 
 class Client():
@@ -322,7 +327,6 @@ class Client():
 
 
 	def create_environment(self):
-		
 
 		# Create the "sun" for the shadows
 		sun = DirectionalLight(shadows=True,shadow_map_resolution=(2048 ,2048))
@@ -335,9 +339,17 @@ class Client():
 		# map_collider = Entity(model="Assets/Models/Map/map_collider.obj", scale=(1,1,1), collider = "mesh")
 		# map_collider.visible = False
 
-		map = Entity(model="Assets/Models/Map/map2.obj", scale=(1,1,1), position=(0, -10, 0), shader=lit_with_shadows_shader)
-		map_collider = Entity(model="Assets/Models/Map/map2.obj", scale=(1,1,1), position=(0, -10, 0), collider = "mesh")
+		# map = Entity(model="Assets/Models/Map/map2.obj", scale=(1,1,1), position=(0, -10, 0), shader=lit_with_shadows_shader)
+		# map_collider = Entity(model="Assets/Models/Map/map2.obj", scale=(1,1,1), position=(0, -10, 0), collider = "mesh")
+		# map_collider.visible = False
+  
+
+		map_collider = Entity(model="Assets/Models/Map/map3.obj", scale=(1,1,1), position=(0, -10, 0), collider = "mesh")
 		map_collider.visible = False
+		
+		map_obst = Entity(model="Assets/Models/Map/map3/obst", texture = 'Assets/Models/Map/map3/orange', scale=(1,1,1), position=(0, -10, 0), shader=lit_with_shadows_shader)
+		map_walls = Entity(model="Assets/Models/Map/map3/walls", texture = 'Assets/Models/Map/map3/grey', scale=(1,1,1), position=(0, -10, 0), shader=lit_with_shadows_shader)
+		map_floor = Entity(model="Assets/Models/Map/map3/floor", texture = 'Assets/Models/Map/map3/grey_floor', scale=(1,1,1), position=(0, -10, 0), shader=lit_with_shadows_shader)
 
 		# Create sky visuals
 		Sky()
@@ -355,7 +367,10 @@ class Client():
 						self.handle_request(data)
 				except socket.timeout:
 					# Close game, no connection to server
-					pass
+					print("Connection to server lost")
+					self.player.send_disconnect()
+
+					
 	
 	def add_player(self, player_id, player_pos, player_rotation):
 		self.player.connected_players[player_id] = OtherPlayer(player_id, player_pos, player_rotation)
@@ -439,9 +454,9 @@ class Client():
 				self.player.connected_players[player_id].enabled = False
 				del self.player.connected_players[player_id]
 				print(f"Player {player_id} disconnected")
-			# If the disconnecting player is us, close the connection socket
-			elif player_id == self.player.player_id:
-				self.player.game_running = False
+			# # If the disconnecting player is us, close the connection socket
+			# elif player_id == self.player.player_id:
+			# 	self.player.game_running = False
 
 
 		

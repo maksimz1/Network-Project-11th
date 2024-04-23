@@ -1,4 +1,4 @@
-# File to store all the weapon constants
+# File to store all game constants
 from ursina import *
 WEAPONS = {
     "Pistol": {
@@ -24,6 +24,10 @@ WEAPONS = {
         "recoil": 0.8
     },
 }
+
+KEEP_ALIVE_TIME = 3
+TIMEOUT_TIME = 2
+
 MUZZLE_FLASH_TIME = 0.1
 WEAPON_ROTATION_OFFSET = (0, 90, 0)
 MUZZLE_FLASH_LOCATION_PISTOL= ((-1.6 / 0.3),(0.6 / 0.3),(0 / 0.3))

@@ -28,7 +28,7 @@ class Weapon(Entity):
 		self.on_cooldown = False
 		self.recoil = recoil
 		self.enabled = False
-		self.shader = colored_lights_shader
+		self.shader = colored_lights_shader	
 
 		self.color = color.white
 		self.fire_mode = fire_mode
@@ -43,11 +43,15 @@ class Weapon(Entity):
 
 		
 	# Function to shoot the weapon
-	def shoot(self):
+	def shoot(self, player):
 		if not self.on_cooldown:
+
+			# If the weapon is out of ammo, reload, do not shoot
 			if self.current_ammo == 0:
 				# self.reload()
 				return False
+			
+			# If the weapon is not out of ammo, shoot
 			self.current_ammo -= 1
 			self.ammo_text.text = f'{self.current_ammo}/{self.ammo}'
 			hit_info = self.check_hit()
@@ -55,6 +59,7 @@ class Weapon(Entity):
 			self.on_cooldown = True
 
 			invoke(setattr, self, 'on_cooldown', False, delay=0.2/self.fire_rate)
+			
 			return hit_info
 		else:
 			return False
@@ -92,8 +97,11 @@ class Weapon(Entity):
 		self.ammo_text.text = f'{self.current_ammo}/{self.ammo}'
 	
 	def calc_recoil(self):
-		value = random.randrange(-self.recoil * 10, self.recoil * 10)
-		return value / 10
+		value_x = random.randrange(-self.recoil * 10, self.recoil * 10)  / 3
+		value_y = random.randrange(-self.recoil * 10, self.recoil * 10) / 3
+
+		print((value_x, value_y))
+		return (value_x, value_y)
 
 class Pistol(Weapon):
 	def __init__(self, camera_pivot,muzzle_position, position = (0,0,0), rotation = (0,0,0), scale = (0.3, 0.3, 0.3)):
@@ -109,6 +117,8 @@ class Pistol(Weapon):
 					
 		self.model = 'Assets/Models/Pistol.obj'
 		
+
+		
 class AssaultRifle(Weapon):
 	def __init__(self, camera_pivot,muzzle_position, position = (0,0,0), rotation = (0,0,0), scale = (0.3, 0.3, 0.3)):
 		super().__init__(camera_pivot,
@@ -120,5 +130,6 @@ class AssaultRifle(Weapon):
 					recoil = WEAPONS["Assault Rifle"]["recoil"],
 					position=position, rotation=rotation, scale=scale, muzzle_position=muzzle_position,
 					fire_mode="full")
-					
+		
+		
 		self.model = 'Assets/Models/Assault.obj'
