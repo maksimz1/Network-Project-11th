@@ -1,5 +1,5 @@
 
-from ursina.shaders import *
+import ursina.shaders
 from ursina import *
 import constants
 
@@ -27,8 +27,11 @@ class Weapon(Entity):
 		self.current_ammo = self.magazine_size
 		self.on_cooldown = False
 		self.recoil = recoil
+		self.target_recoil = (0,0)
+		self.recoil_speed = 1
 		self.enabled = False
-		self.shader = lit_with_shadows_shader
+		self.shader = ursina.shaders.basic_lighting_shader
+		self.is_shooting = False
 
 		self.color = color.white
 		self.fire_mode = fire_mode
@@ -40,6 +43,13 @@ class Weapon(Entity):
 		self.muzzle.enabled = False
 
 
+	def apply_recoil(self, delta_time, camera):
+		# Increase target recoil angle based on current recoil settings
+		recoil = self.calc_recoil()
+		self.target_recoil = (self.target_recoil[0] + recoil[0], self.target_recoil[1] + recoil[1])
+		# Smoothly update the current angle to approach the target recoil
+		camera.rotation_x = clamp(lerp(camera.rotation_x, self.target_recoil[0], self.recoil_speed * delta_time), 0, 180)
+		camera.rotation_y = clamp(lerp(camera.rotation_y, self.target_recoil[1], self.recoil_speed * delta_time), 0, 180)
 
 		
 	# Function to shoot the weapon
@@ -49,6 +59,7 @@ class Weapon(Entity):
 			# If the weapon is out of ammo, reload, do not shoot
 			if self.current_ammo == 0:
 				# self.reload()
+				self.is_shooting = False
 				return False
 			
 			# If the weapon is not out of ammo, shoot
@@ -57,7 +68,7 @@ class Weapon(Entity):
 			hit_info = self.check_hit()
 			self.display_muzzle_flash()
 			self.on_cooldown = True
-
+			self.is_shooting = True
 			invoke(setattr, self, 'on_cooldown', False, delay=0.2/self.fire_rate)
 			
 			return hit_info
@@ -97,8 +108,8 @@ class Weapon(Entity):
 		self.ammo_text.text = f'{self.current_ammo}/{self.ammo}'
 	
 	def calc_recoil(self):
-		value_x = random.randrange(-self.recoil * 10, self.recoil * 10)  / 3
-		value_y = random.randrange(-self.recoil * 10, self.recoil * 10) / 3
+		value_x = random.randrange(-self.recoil * 5, self.recoil * 10)  / 3
+		value_y = random.randrange(-self.recoil * 5, self.recoil * 10) / 3
 
 		print((value_x, value_y))
 		return (value_x, value_y)

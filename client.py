@@ -9,8 +9,6 @@ from ursina import Entity
 from direct.actor.Actor import Actor
 from Weapon import *
 import constants
-from direct.filter.CommonFilters import CommonFilters
-import Shaders
 
 lit_with_shadows_shader.default_input['shadow_color'] = hsv(225, .24, .67, .65)
 
@@ -61,12 +59,13 @@ class UI_Handler(Entity):
 		self.ammo_text.text = f'{self.player.current_weapon.current_ammo}/{self.player.current_weapon.ammo}'
 
 class Player(Entity):
-	def __init__(self):
-		super().__init__()
+	def __init__(self, server_ip=SERVER_IP, server_port=SERVER_UDP_PORT, **kwargs):
+		super().__init__(**kwargs)
 		
+		self.controller = FirstPersonController()
 		self.jumping = False
 		self.player_id = None
-		self.controller = FirstPersonController()
+		
 
 		self.prev_location = self.controller.position
 		self.prev_rotation = self.controller.rotation
@@ -102,8 +101,6 @@ class Player(Entity):
 			if data:
 				data = json.loads(data.decode())
 				self.player_id = data['player_id']
-
-	
 
 	def change_fov(self, fov):
 		camera.fov = lerp(camera.fov, fov, 8 * time.dt)
@@ -275,8 +272,18 @@ class Player(Entity):
 				if self.current_weapon.fire_mode == "full":
 					
 					if self.current_weapon is not None:
+						self.current_weapon.is_shooting = True
 						self.shoot_weapon()
-						
+		else:
+			if self.current_weapon is not None:
+				self.current_weapon.is_shooting = False
+
+		# # Apply recoil to the player's camera
+		# if self.current_weapon is not None:
+		# 	if self.current_weapon.is_shooting:
+		# 		self.current_weapon.apply_recoil(time.dt, self.controller)
+		# 	else:
+		# 		self.current_weapon.target_recoil = (0,0)
 
 		self.prev_location = self.controller.position
 		self.prev_rotation = self.controller.rotation
@@ -293,9 +300,8 @@ class Player(Entity):
 				
 				if shoot_data is not False:
 					calc_recoil = self.current_weapon.calc_recoil()
-					self.controller.animate('rotation_x', self.controller.rotation_x + calc_recoil[0], duration=0.01)
-					self.controller.animate('rotation_y', self.controller.rotation_y + calc_recoil[1], duration=0.01)
-	 				# print(f"rotation_x: {self.controller.rotation_x}, rotation_y: {self.controller.rotation_y}")
+					self.controller.animate('rotation_x', self.controller.rotation_x + calc_recoil[0], duration=0.03, curve=curve.in_bounce)
+					self.controller.animate('rotation_y', self.controller.rotation_y + calc_recoil[1], duration=0.03, curve=curve.in_bounce)
 					request = self.build_request("shoot", hit_player=shoot_data)
 					self.sock.sendall(request.encode())
 				
@@ -316,46 +322,78 @@ class Player(Entity):
 		self.game_running = False
 
 
-class Client():
-	def __init__(self):
-		self.player = Player()
-		self.create_environment()
+class Client(Entity):
+	def __init__(self, map='map1', server_ip=SERVER_IP, server_port=SERVER_UDP_PORT):
+		super().__init__()
+		self.map = map
+		self.server_ip = server_ip
+		self.server_port = server_port
 
-		
+		self.in_menu = True
+		self.create_environment()
+		self.player = None
+
+		camera.z -= 20
+		camera.y += 10
+		camera.rotation_x = 25
+		camera.fov = 80
+
+
+	def start_game(self):
+		self.in_menu = False
+		self.player = Player(self.server_ip, self.server_port, parent=self)
 		listen_thread = threading.Thread(target=self.listen)
 		listen_thread.start()
 
-
+	
 	def create_environment(self):
-
+		
 		# Create the "sun" for the shadows
 		sun = DirectionalLight(shadows=True,shadow_map_resolution=(2048 ,2048))
 		sun.look_at(Vec3(1,-1,-1))
 		
-		
-		
-		# Create the map itself, with a collider
-		# ground = Entity(model="Assets/Models/Map/map_ground.obj", scale=(1,1,1), position=(0, 0.1, 0), shader=lit_with_shadows_shader, collider = 'mesh')
-		# map = Entity(model="Assets/Models/Map/map1.obj", scale=(1,1,1), position=(0, 0, 0), shader=colored_lights_shader)
-		# map_collider = Entity(model="Assets/Models/Map/map_collider.obj", scale=(1,1,1), collider = "mesh")
-		# map_collider.visible = False
-
-		# map = Entity(model="Assets/Models/Map/map2.obj", scale=(1,1,1), position=(0, -10, 0), shader=lit_with_shadows_shader)
-		# map_collider = Entity(model="Assets/Models/Map/map2.obj", scale=(1,1,1), position=(0, -10, 0), collider = "mesh")
-		# map_collider.visible = False
-  
-
-		map_collider = Entity(model="Assets/Models/Map/map3.obj", scale=(1,1,1), position=(0, -10, 0), collider = "mesh")
-		map_collider.visible = False
-		
-		map_obst = Entity(model="Assets/Models/Map/map3/obst", texture = 'Assets/Models/Map/map3/orange', scale=(1,1,1), position=(0, -10, 0), shader=lit_with_shadows_shader)
-		map_walls = Entity(model="Assets/Models/Map/map3/walls", texture = 'Assets/Models/Map/map3/grey', scale=(1,1,1), position=(0, -10, 0), shader=lit_with_shadows_shader)
-		map_floor = Entity(model="Assets/Models/Map/map3/floor", texture = 'Assets/Models/Map/map3/grey_floor', scale=(1,1,1), position=(0, -10, 0), shader=lit_with_shadows_shader)
+		# load the map, default map is map1
+		self.load_map(self.map)
 
 		# Create sky visuals
-		Sky()
+		sky = Sky()
 		
+
+	def load_map(self, map_name):
+		match map_name:
+			case "map1":
+				map_collider = Entity(model="Assets/Models/Map/map3.obj", scale=(1,1,1), position=(0, -10, 0), collider = "mesh", parent=self)
+				map_collider.visible = False
+				
+				map_obst = Entity(model="Assets/Models/Map/map3/obst", texture = 'Assets/Models/Map/map3/orange', scale=(1,1,1), position=(0, -10, 0), shader=lit_with_shadows_shader, parent=self)
+				map_walls = Entity(model="Assets/Models/Map/map3/walls", texture = 'Assets/Models/Map/map3/grey', scale=(1,1,1), position=(0, -10, 0), shader=lit_with_shadows_shader, parent=self)
+				map_floor = Entity(model="Assets/Models/Map/map3/floor", texture = 'Assets/Models/Map/map3/grey_floor', scale=(1,1,1), position=(0, -10, 0), shader=lit_with_shadows_shader, parent=self)
+			
+			case "map2":
+				map = Entity(model="Assets/Models/Map/map2.obj", scale=(1,1,1), position=(0, -10, 0), shader=lit_with_shadows_shader, parent=self)
+				map_collider = Entity(model="Assets/Models/Map/map2.obj", scale=(1,1,1), position=(0, -10, 0), collider = "mesh", parent=self)
+				map_collider.visible = False
+			
+			case "map3":
+				ground = Entity(model="Assets/Models/Map/map_ground.obj", scale=(1,1,1), position=(0, 0.1, 0), shader=lit_with_shadows_shader, collider = 'mesh', parent=self)
+				map = Entity(model="Assets/Models/Map/map1.obj", scale=(1,1,1), position=(0, 0, 0), shader=colored_lights_shader, parent=self)
+				map_collider = Entity(model="Assets/Models/Map/map_collider.obj", scale=(1,1,1), collider = "mesh", parent=self)
+				map_collider.visible = False
+			
+			case _:
+				map_collider = Entity(model="Assets/Models/Map/map3.obj", scale=(1,1,1), position=(0, -10, 0), collider = "mesh", parent=self)
+				map_collider.visible = False
+				
+				map_obst = Entity(model="Assets/Models/Map/map3/obst", texture = 'Assets/Models/Map/map3/orange', scale=(1,1,1), position=(0, -10, 0), shader=lit_with_shadows_shader, parent=self)
+				map_walls = Entity(model="Assets/Models/Map/map3/walls", texture = 'Assets/Models/Map/map3/grey', scale=(1,1,1), position=(0, -10, 0), shader=lit_with_shadows_shader, parent=self)
+				map_floor = Entity(model="Assets/Models/Map/map3/floor", texture = 'Assets/Models/Map/map3/grey_floor', scale=(1,1,1), position=(0, -10, 0), shader=lit_with_shadows_shader, parent=self)
 	
+	def unload_map(self):
+		for entity in self.children:
+			if entity != self.player:
+				destroy(entity)
+	
+
 	def listen(self):
 		while True:
 			if not self.player.game_running:
@@ -369,14 +407,11 @@ class Client():
 				except socket.timeout:
 					# Close game, no connection to server
 					print("Connection to server lost")
-					self.player.send_disconnect()
-
-					
+					self.player.send_disconnect()				
 	
 	def add_player(self, player_id, player_pos, player_rotation):
 		self.player.connected_players[player_id] = OtherPlayer(player_id, player_pos, player_rotation)
 	
-
 	def handle_request(self, data):
 		data = json.loads(data.decode())
 		if data['request'] == 'hello_accept':
@@ -504,8 +539,8 @@ class Client():
 						print(f"You are already dead")
 
 class OtherPlayer(Entity):
-	def __init__(self, player_id, player_pos, player_rotation):
-		super().__init__()
+	def __init__(self, player_id, player_pos, player_rotation, **kwargs):
+		super().__init__(**kwargs)
 		self.shader = colored_lights_shader
 		self.actor = Actor('Assets/Models/Chicken.gltf')
 		self.actor.reparent_to(self)

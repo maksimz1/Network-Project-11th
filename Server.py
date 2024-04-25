@@ -75,15 +75,11 @@ class Server():
 			self.connected_players[player_id].cam_rot = player_camera_rot
 			self.broadcast_player_location(self.connected_players[player_id])
 
-
 		elif data['request'] == 'disconnect':
 			player_id = data['player_id']
 			self.broadcast_player_disconnect(player_id)
 			print(f"Player {player_id} disconnected")
 			del self.connected_players[player_id]
-			
-
-
 		
 		elif data['request'] == 'switch_weapon':
 			player_id = data['player_id']
