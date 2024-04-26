@@ -22,9 +22,12 @@ class Weapon(Entity):
 		self.rotation = rotation + constants.WEAPON_ROTATION_OFFSET
 		self.damage = damage
 		self.fire_rate = fire_rate
+		# ammo - total ammo, current_ammo - ammo in the magazine, magazine_size - size of the magazine, default_ammo - default total ammo
 		self.ammo = ammo
+		self.default_ammo = ammo
 		self.magazine_size = magazine_size
-		self.current_ammo = self.magazine_size
+		self.current_ammo =magazine_size
+		
 		self.on_cooldown = False
 		self.recoil = recoil
 		self.target_recoil = (0,0)
@@ -33,11 +36,13 @@ class Weapon(Entity):
 		self.shader = ursina.shaders.basic_lighting_shader
 		self.is_shooting = False
 
+		
+
 		self.color = color.white
 		self.fire_mode = fire_mode
 
-		self.ammo_text = Text(text=f'{self.current_ammo}/{self.ammo}', position=(-0.6,-0.3), scale=1)
-		self.ammo_text.enabled = False
+		# self.ammo_text = Text(text=f'{self.current_ammo}/{self.ammo}', position=(-0.6,-0.3), scale=1)
+		# self.ammo_text.enabled = False
 		
 		self.muzzle.position = (muzzle_position*self.scale)
 		self.muzzle.enabled = False
@@ -64,7 +69,7 @@ class Weapon(Entity):
 			
 			# If the weapon is not out of ammo, shoot
 			self.current_ammo -= 1
-			self.ammo_text.text = f'{self.current_ammo}/{self.ammo}'
+			# self.ammo_text.text = f'{self.current_ammo}/{self.ammo}'
 			hit_info = self.check_hit()
 			self.display_muzzle_flash()
 			self.on_cooldown = True
@@ -105,7 +110,7 @@ class Weapon(Entity):
 			self.ammo = 0
 
 		self.current_ammo = self.magazine_size
-		self.ammo_text.text = f'{self.current_ammo}/{self.ammo}'
+		# self.ammo_text.text = f'{self.current_ammo}/{self.ammo}'
 	
 	def calc_recoil(self):
 		value_x = random.randrange(-self.recoil * 5, self.recoil * 10)  / 3
@@ -113,6 +118,14 @@ class Weapon(Entity):
 
 		print((value_x, value_y))
 		return (value_x, value_y)
+	
+	def reset(self):
+		self.current_ammo = self.magazine_size
+		self.ammo = self.default_ammo
+
+		self.on_cooldown = False
+		self.is_shooting = False
+
 	
 
 class Pistol(Weapon):

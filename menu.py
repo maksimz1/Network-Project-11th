@@ -7,7 +7,7 @@ class MainMenu(Entity):
             parent = camera.ui
         )
         # Create menu elements
-        self.title = Text("Chicken fight",origin=(0,0), x=0,y=.3,size=0.065,font = "Assets/Fonts/FlyingBird.ttf", color = color.light_gray, parent = self)
+        self.title = Text("Chicken fight",origin=(0,0), x=0,y=.3,size=0.065,font = "Assets/Fonts/FlyingBird.ttf", color = color.blue, parent = self)
         self.play_button = Button(text="Play", scale=(0.2,0.07), origin=(0,0), y=0, color=color.red,font = "Assets/Fonts/FlyingBird.ttf", parent = self)
         self.change_map_button = Button(text="Choose Map", scale=(0.2,0.07), origin=(0,0), y=-0.1, color=color.red,font = "Assets/Fonts/FlyingBird.ttf", parent = self)
         self.quit_button = Button(text="Quit", scale=(0.2,0.07), origin=(0,0), y=-.2, color=color.red,font = "Assets/Fonts/FlyingBird.ttf", parent = self)
@@ -62,12 +62,12 @@ class DeathScreen(Entity):
         )
 
         
-        self.title = Text("You died",origin=(0,0), x=0,y=.3,size=0.065,font = "Assets/Fonts/FlyingBird.ttf", color = color.light_gray, parent = self)
+        self.title = Text("You died",origin=(0,0), x=0,y=.3,size=0.065,font = "Assets/Fonts/FlyingBird.ttf", color = color.red, parent = self)
         
         self.play_again_button = Button(text = "Play Again", scale=(0.2,0.07), origin=(0,0), y=0, color='#0099db', font = "Assets/Fonts/FlyingBird.ttf", parent = self)
         self.quit_button = Button(text = "Quit", scale=(0.2,0.07), origin=(0,0), y=-.2, color='#0099db', font = "Assets/Fonts/FlyingBird.ttf", parent = self)
 
-        self.play_again_button.on_click = self.PlayAgain
+        self.play_again_button.on_click = manager.respawn
         self.quit_button.on_click = self.Quit
         
         self.animate_menu()
@@ -159,23 +159,35 @@ class MapMenu(Entity):
 
 class MenuManager:
     def __init__(self):
+        # Create the menus
         self.menu = MainMenu(self)
         self.death_screen = DeathScreen(self)
         self.map_selection = MapMenu(self)
 
-        self.menu.enabled = False
+        # Hide the menus, only show the main menu
         self.death_screen.enabled = False
         self.map_selection.enabled = False
 
+        # Set the current menu to the main menu
         self.current_menu = self.menu
-        self.client = Client()
+
+        # Create the game client
+        self.client = Client(menu_manager=self)
 
         self.animation = CameraAnimator(camera)
 
     def run_client(self):
         self.current_menu.enabled = False
         self.client.start_game()
+        self.animation.enabled = False
     
+    def respawn(self):
+        self.animation.enabled = False
+        self.current_menu.enabled = False
+        self.client.respawn_player()
+        
+        
+
     def show_main_menu(self):
         self.change_menu(self.menu)
         self.menu.animate_menu()
@@ -183,6 +195,7 @@ class MenuManager:
     def show_death_screen(self):
         self.change_menu(self.death_screen)
         self.death_screen.animate_menu()
+        self.animation.enabled = True
 
     def show_map_selection(self):
         self.change_menu(self.map_selection)

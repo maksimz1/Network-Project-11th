@@ -13,7 +13,7 @@ import constants
 lit_with_shadows_shader.default_input['shadow_color'] = hsv(225, .24, .67, .65)
 
 app = Ursina(borderless=False, fullscreen=False, window_title='Client', vsync=False)
-SERVER_IP = '127.0.0.1'
+SERVER_IP = '77.124.2.9'
 SERVER_UDP_PORT = 7878
 
 PLAYER_SCALE = (1,1,1)
@@ -59,12 +59,13 @@ class UI_Handler(Entity):
 		self.ammo_text.text = f'{self.player.current_weapon.current_ammo}/{self.player.current_weapon.ammo}'
 
 class Player(Entity):
-	def __init__(self, server_ip=SERVER_IP, server_port=SERVER_UDP_PORT, **kwargs):
+	def __init__(self,player_id, sock, **kwargs):
 		super().__init__(**kwargs)
 		
 		self.controller = FirstPersonController()
 		self.jumping = False
-		self.player_id = None
+		self.player_id = player_id
+		self.sock = sock
 		
 
 		self.prev_location = self.controller.position
@@ -77,8 +78,7 @@ class Player(Entity):
 						    AssaultRifle(self.controller.camera_pivot, muzzle_position=constants.MUZZLE_FLASH_LOCATION_RIFLE)]
 		self.current_weapon = None
 	
-		# self.create_ground()
-		self.create_connection()
+		# self.create_connection()
 
 		
 		self.game_running = True
@@ -227,6 +227,22 @@ class Player(Entity):
 					"weapon_type": self.current_weapon.weapon_type
 				}
 			)
+		
+		elif request_type == "death":
+			request = json.dumps(
+				{
+					"request": "death",
+					"player_id": self.player_id
+				}
+			)
+		
+		elif request_type == "respawn":
+			request = json.dumps(
+				{
+					"request": "respawn",
+					"player_id": self.player_id
+				}
+			)
 		return request
 	
 	def input(self, key):
@@ -300,19 +316,39 @@ class Player(Entity):
 				
 				if shoot_data is not False:
 					calc_recoil = self.current_weapon.calc_recoil()
-					self.controller.animate('rotation_x', self.controller.rotation_x + calc_recoil[0], duration=0.03, curve=curve.in_bounce)
+					self.controller.camera_pivot.animate('rotation_x', self.controller.rotation_x + calc_recoil[0], duration=0.03, curve=curve.in_bounce)
 					self.controller.animate('rotation_y', self.controller.rotation_y + calc_recoil[1], duration=0.03, curve=curve.in_bounce)
 					request = self.build_request("shoot", hit_player=shoot_data)
 					self.sock.sendall(request.encode())
 				
+	def send_death(self):
+		death_request = self.build_request("death")
+		self.sock.sendall(death_request.encode())
 
-	def death_screen(self):
-		# Create a death screen
-		death_screen = Entity(model='quad', scale=(2, 1), color=color.black, z=-1)
-		death_text = Text(text='You have died', scale=2, y=0.1, color=color.red)
-		death_text.create_background(padding=(.5,.25), radius=Text.size/2)
-		invoke(self.send_disconnect, delay=6)
+	def death(self):
+		# Disable the player and fps controller
+		self.enabled = False
+		self.controller.enabled = False
+		# Unlock the mouse
+		mouse.locked = False
+		mouse.visible = True
 
+	def respawn(self):
+		self.enabled = True
+		self.controller.enabled = True
+		self.controller.position = constants.SPAWN_POS
+		self.controller.rotation = constants.SPAWN_ROT
+		self.controller.camera_pivot.rotation = constants.SPAWN_ROT
+		camera.rotation = (0,0,0)
+		camera.position = (0,0,0)
+
+		self.health = 100
+		for weapon in self.weapon_inventory:
+			weapon.reset()
+
+	def send_respawn(self):
+		request = self.build_request("respawn")
+		self.sock.sendall(request.encode())
 
 	def send_disconnect(self):
 		# Function to start the process of disconnecting
@@ -323,13 +359,13 @@ class Player(Entity):
 
 
 class Client(Entity):
-	def __init__(self, map='map1', server_ip=SERVER_IP, server_port=SERVER_UDP_PORT):
+	def __init__(self,menu_manager, map='map1', ip=SERVER_IP, port=SERVER_UDP_PORT):
 		super().__init__()
 		self.map = map
-		self.server_ip = server_ip
-		self.server_port = server_port
+		self.ip = ip
+		self.port = port
+		self.sock = None
 
-		self.in_menu = True
 		self.create_environment()
 		self.player = None
 
@@ -338,16 +374,52 @@ class Client(Entity):
 		camera.rotation_x = 25
 		camera.fov = 80
 
+		self.menu_manager = menu_manager
+
 
 	def start_game(self):
-		self.in_menu = False
-		self.player = Player(self.server_ip, self.server_port, parent=self)
+		
+		# Create a socket and connect to the server
+		player_id = self.create_connection()
+		self.player = Player(player_id=player_id, sock=self.sock, parent=self)
+		
 		listen_thread = threading.Thread(target=self.listen)
 		listen_thread.start()
 
+	def respawn_player(self):
+		self.player.send_respawn()
+
+	def create_connection(self):
+		# Create a UDP socket and connect to the server
+		self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+		self.sock.settimeout(constants.TIMEOUT_TIME)
+		self.sock.connect((SERVER_IP, SERVER_UDP_PORT))
+		self.send_hello()
+
+		# Get the player's ID
+		while True:
+			data = self.sock.recv(65535)
+			if data:
+				data = json.loads(data.decode())
+				return data['player_id']
+			
 	
+	def send_hello(self):
+		player_pos = constants.SPAWN_POS
+		player_rot = constants.SPAWN_ROT
+		camera_rot = constants.SPAWN_ROT
+
+		request = json.dumps(
+			{
+				"request": "hello",
+				"player_pos": [player_pos.x, player_pos.y, player_pos.z],
+				"player_rotation": [player_rot.x, player_rot.y, player_rot.z],
+				"camera_rotation": [camera_rot.x, camera_rot.y, camera_rot.z]
+			}
+		)
+		self.sock.sendall(request.encode())
+
 	def create_environment(self):
-		
 		# Create the "sun" for the shadows
 		sun = DirectionalLight(shadows=True,shadow_map_resolution=(2048 ,2048))
 		sun.look_at(Vec3(1,-1,-1))
@@ -358,7 +430,6 @@ class Client(Entity):
 		# Create sky visuals
 		sky = Sky()
 		
-
 	def load_map(self, map_name):
 		match map_name:
 			case "map1":
@@ -393,6 +464,13 @@ class Client(Entity):
 			if entity != self.player:
 				destroy(entity)
 	
+	def unload_players(self):
+		for player in self.player.connected_players.values():
+			player.enabled = False
+		
+	def load_players(self):
+		for player in self.player.connected_players.values():
+			player.enabled = True
 
 	def listen(self):
 		while True:
@@ -410,8 +488,8 @@ class Client(Entity):
 					self.player.send_disconnect()				
 	
 	def add_player(self, player_id, player_pos, player_rotation):
-		self.player.connected_players[player_id] = OtherPlayer(player_id, player_pos, player_rotation)
-	
+		self.player.connected_players[player_id] = OtherPlayer(player_id, player_pos, player_rotation, parent=self)
+
 	def handle_request(self, data):
 		data = json.loads(data.decode())
 		if data['request'] == 'hello_accept':
@@ -446,7 +524,6 @@ class Client(Entity):
 
 				self.add_player(player_id,player_pos, player_rot)
 				self.player.connected_players[player_id].equip(weapon_type)
-    
 
     
 				if self.player.connected_players[player_id].current_weapon is not None:
@@ -490,10 +567,22 @@ class Client(Entity):
 				self.player.connected_players[player_id].enabled = False
 				del self.player.connected_players[player_id]
 				print(f"Player {player_id} disconnected")
-			# # If the disconnecting player is us, close the connection socket
-			# elif player_id == self.player.player_id:
-			# 	self.player.game_running = False
+		
+		elif data['request'] == 'player_death':
+			player_id = data['player_id']
+			if player_id in self.player.connected_players:
+				self.player.connected_players[player_id].enabled = False
+				print(f"Player {player_id} has died")
 
+		elif data['request'] == 'player_respawn':
+			player_id = data['player_id']
+			if player_id in self.player.connected_players:
+				self.player.connected_players[player_id].enabled = True
+				print(f"Player {player_id} has respawned")
+			elif player_id == self.player.player_id:
+				self.player.respawn()
+				self.load_players()
+				print(f"Player {player_id} has respawned")
 
 		
 		elif data['request'] == 'switch_weapon':
@@ -533,7 +622,16 @@ class Client(Entity):
 						self.player.health -= WEAPONS[weapon_type]['damage']
 						if self.player.health <= 0:
 							print(f"You have been killed")
-							self.player.death_screen()
+
+							# Display the death screen
+							self.menu_manager.show_death_screen()
+							
+							self.player.death()
+
+							# Unload other players
+							self.unload_players()
+							# Notify the server of the death
+							self.player.send_death()
 
 					else:
 						print(f"You are already dead")
@@ -572,9 +670,9 @@ class OtherPlayer(Entity):
 			self.current_weapon = self.weapons_inventory[weapon_type]
 			self.current_weapon.enabled = True
 
-def main():
-	client = Client()
-	app.run()
+# def main():
+# 	client = Client()
+# 	app.run()
 	
-if __name__ == '__main__':
-	main()
+# if __name__ == '__main__':
+# 	main()

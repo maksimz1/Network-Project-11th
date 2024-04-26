@@ -16,6 +16,8 @@ class Player():
 		self.address = address
 		self.weapon = None
 		self.cam_rot = cam_rot
+		self.state = None
+		self.life_state = "alive"
 
 class Server():
 	def __init__(self):
@@ -94,12 +96,29 @@ class Server():
 			player_id = data['player_id']
 			weapon_type = data['weapon_type']
 			hit_player = data['hit_player']
-				
-			print(f"Player {player_id} shot player {hit_player} with weapon {weapon_type}")
 			
-			if weapon_type in WEAPONS and self.connected_players[player_id].weapon == weapon_type:
+			# Check if shot player is valid and is alive
+			# if hit_player in self.connected_players and self.connected_players[hit_player].state == "alive":
+			if True:
+				# Check if the player shooting is alive
+				if self.connected_players[player_id].life_state == "alive":
+					print(f"Player {player_id} shot player {hit_player} with weapon {weapon_type}")
+					
+					# Check if the weapon is valid and the player has the right weapon
+					if weapon_type in WEAPONS and self.connected_players[player_id].weapon == weapon_type:
+						self.broadcast_shoot(player_id, weapon_type, hit_player)
 
-				self.broadcast_shoot(player_id, weapon_type, hit_player)
+		elif data['request'] == 'death':
+			player_id = data['player_id']
+			print(f"Player {player_id} died")
+			self.connected_players[player_id].state = "dead"
+			self.broadcast_player_death(player_id)
+		
+		elif data['request'] == 'respawn':
+			player_id = data['player_id']
+			print(f"Player {player_id} respawned")
+			self.connected_players[player_id].state = "alive"
+			self.broadcast_player_respawn(player_id)
 			
 	def broadcast_player_connection(self, data: Player):
 		request = json.dumps(
@@ -124,7 +143,6 @@ class Server():
 		for player in self.connected_players.values():
 			# Send the message to all players, allowing for other players to remove the player on their end
 			self.sock.sendto(request.encode(), player.address)
-
 
 	def broadcast_player_location(self, data: Player):
 
@@ -171,6 +189,29 @@ class Server():
 				continue
 			self.sock.sendto(request.encode(), player.address)
 					
+	def broadcast_player_death(self, player_id):
+		request = json.dumps(
+			{
+				"request": "player_death",
+				"player_id": player_id
+			}
+		)
+
+		for player in self.connected_players.values():
+			if player.id == player_id:
+				continue
+			self.sock.sendto(request.encode(), player.address)
+
+	def broadcast_player_respawn(self, player_id):
+		request = json.dumps(
+			{
+				"request": "player_respawn",
+				"player_id": player_id
+			}
+		)
+
+		for player in self.connected_players.values():
+			self.sock.sendto(request.encode(), player.address)
 
 	def send_player_list(self, addr):
 		request = {"request": "players_list", "players": []}
