@@ -13,7 +13,7 @@ import constants
 lit_with_shadows_shader.default_input['shadow_color'] = hsv(225, .24, .67, .65)
 
 app = Ursina(borderless=False, fullscreen=False, window_title='Client', vsync=False)
-SERVER_IP = '77.124.2.9'
+SERVER_IP = '127.0.0.1'
 SERVER_UDP_PORT = 7878
 
 PLAYER_SCALE = (1,1,1)
@@ -635,7 +635,9 @@ class Client(Entity):
 
 					else:
 						print(f"You are already dead")
-
+	
+	def quit(self):
+		self.player.send_disconnect()
 class OtherPlayer(Entity):
 	def __init__(self, player_id, player_pos, player_rotation, **kwargs):
 		super().__init__(**kwargs)

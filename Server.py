@@ -258,7 +258,7 @@ class Server():
 	def keep_alive(self):
 		# Send keep alive to players, prevent timeout when no data is sent
 		while True:
-			print(self.connected_players)
+			# print(self.connected_players)
 			for player in self.connected_players.values():
 				request = json.dumps(
 					{

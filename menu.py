@@ -208,7 +208,7 @@ class MenuManager:
 
     def quit(self):
         self.client.in_menu = False
-        application.quit()
+        self.client.quit()
 
 class CameraAnimator(Entity):
     def __init__(self, camera):
