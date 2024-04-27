@@ -235,29 +235,29 @@ class CameraAnimator(Entity):
         camera.z = lerp(camera.z, new_z, 0.1)
 
         # Optionally adjust the camera to always look at the pivot or another target
-        camera.look_at(pivot, up=Vec3(0,1,0))
+        camera.look_at(pivot, up=(0,1,0))
 
     def update(self):
         self.animate_camera()
 
         
 
-if __name__ == "__main__":
-    app = Ursina()
+# if __name__ == "__main__":
+#     app = Ursina()
 
-    # # Load the menus
-    # menu = MainMenu()
-    # death_screen = DeathScreen()
-    # map_selection = MapSelection()
+#     # # Load the menus
+#     # menu = MainMenu()
+#     # death_screen = DeathScreen()
+#     # map_selection = MapSelection()
 
-    # map_selection.enabled = False
-    # death_screen.enabled = False
+#     # map_selection.enabled = False
+#     # death_screen.enabled = False
     
-    # current_menu = menu
+#     # current_menu = menu
 
     
-    # # death_screen = DeathScreen()
-    menu_manager = MenuManager()
-    menu_manager.show_main_menu()
+#     # # death_screen = DeathScreen()
+#     menu_manager = MenuManager()
+#     menu_manager.show_main_menu()
 
-    app.run()
+#     app.run()

@@ -12,7 +12,7 @@ import constants
 
 lit_with_shadows_shader.default_input['shadow_color'] = hsv(225, .24, .67, .65)
 
-app = Ursina(borderless=False, fullscreen=False, window_title='Client', vsync=False)
+# app = Ursina(borderless=False, fullscreen=False, window_title='Client', vsync=False)
 SERVER_IP = '127.0.0.1'
 SERVER_UDP_PORT = 7878
 
