@@ -242,22 +242,22 @@ class CameraAnimator(Entity):
 
         
 
-# if __name__ == "__main__":
-#     app = Ursina()
+if __name__ == "__main__":
+    app = Ursina()
 
-#     # # Load the menus
-#     # menu = MainMenu()
-#     # death_screen = DeathScreen()
-#     # map_selection = MapSelection()
+    # # Load the menus
+    # menu = MainMenu()
+    # death_screen = DeathScreen()
+    # map_selection = MapSelection()
 
-#     # map_selection.enabled = False
-#     # death_screen.enabled = False
+    # map_selection.enabled = False
+    # death_screen.enabled = False
     
-#     # current_menu = menu
+    # current_menu = menu
 
     
-#     # # death_screen = DeathScreen()
-#     menu_manager = MenuManager()
-#     menu_manager.show_main_menu()
+    # # death_screen = DeathScreen()
+    menu_manager = MenuManager()
+    menu_manager.show_main_menu()
 
-#     app.run()
+    app.run()

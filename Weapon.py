@@ -34,11 +34,12 @@ class Weapon(Entity):
 		self.recoil_speed = 1
 		self.enabled = False
 		self.shader = ursina.shaders.basic_lighting_shader
+		self.unlit = True
 		self.is_shooting = False
 
 		
 
-		self.color = color.white
+		# self.color = color.white
 		self.fire_mode = fire_mode
 
 		# self.ammo_text = Text(text=f'{self.current_ammo}/{self.ammo}', position=(-0.6,-0.3), scale=1)
@@ -113,8 +114,8 @@ class Weapon(Entity):
 		# self.ammo_text.text = f'{self.current_ammo}/{self.ammo}'
 	
 	def calc_recoil(self):
-		value_x = random.randrange(-self.recoil * 5, self.recoil * 10)  / 3
-		value_y = random.randrange(-self.recoil * 5, self.recoil * 10) / 3
+		value_x = random.uniform(-self.recoil * 5, self.recoil * 10)  / 3
+		value_y = random.uniform(-self.recoil * 5, self.recoil * 10) / 3
 
 		print((value_x, value_y))
 		return (value_x, value_y)
@@ -140,8 +141,8 @@ class Pistol(Weapon):
 					position=position, rotation=rotation, scale=scale, muzzle_position=muzzle_position,
 					fire_mode="semi")
 					
-		self.model = 'Assets/Models/Pistol.obj'
-		self.texture = 'Assets/Textures/pistol.png'
+		self.model = 'Assets/Models/pistol_test.obj'
+		self.texture = 'Assets/Textures/pistolTexture.png'
 		
 
 		

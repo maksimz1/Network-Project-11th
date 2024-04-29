@@ -316,8 +316,10 @@ class Player(Entity):
 				
 				if shoot_data is not False:
 					calc_recoil = self.current_weapon.calc_recoil()
-					self.controller.camera_pivot.animate('rotation_x', self.controller.rotation_x + calc_recoil[0], duration=0.03, curve=curve.in_bounce)
-					self.controller.animate('rotation_y', self.controller.rotation_y + calc_recoil[1], duration=0.03, curve=curve.in_bounce)
+					# self.controller.camera_pivot.animate('rotation_x', self.controller.rotation_x + calc_recoil[0], duration=0.03, curve=curve.in_bounce)
+					# self.controller.animate('rotation_y', self.controller.rotation_y + calc_recoil[1], duration=0.03, curve=curve.in_bounce)
+					camera.shake(duration=0.1, magnitude=calc_recoil[0])
+					# self.controller.camera_pivot.shake(duration=0.03, magnitude=calc_recoil[1], speed=calc_recoil[0])
 					request = self.build_request("shoot", hit_player=shoot_data)
 					self.sock.sendall(request.encode())
 				
@@ -383,6 +385,7 @@ class Client(Entity):
 		player_id = self.create_connection()
 		self.player = Player(player_id=player_id, sock=self.sock, parent=self)
 		
+		
 		listen_thread = threading.Thread(target=self.listen)
 		listen_thread.start()
 
@@ -423,6 +426,7 @@ class Client(Entity):
 		# Create the "sun" for the shadows
 		sun = DirectionalLight(shadows=True,shadow_map_resolution=(2048 ,2048))
 		sun.look_at(Vec3(1,-1,-1))
+		
 		
 		# load the map, default map is map1
 		self.load_map(self.map)
@@ -638,6 +642,7 @@ class Client(Entity):
 	
 	def quit(self):
 		self.player.send_disconnect()
+
 class OtherPlayer(Entity):
 	def __init__(self, player_id, player_pos, player_rotation, **kwargs):
 		super().__init__(**kwargs)
