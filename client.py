@@ -87,6 +87,8 @@ class Player(Entity):
 
 		self.ui_handler = UI_Handler(self)
 
+		self.respawn_cooldown = False
+
 		
 	def create_connection(self):
 
@@ -256,8 +258,9 @@ class Player(Entity):
 			self.equip_weapon(2)
 		
 		if key == 'r':
-			self.current_weapon.reload()
-			invoke(self.ui_handler.update_ammo, delay=1)
+			if self.current_weapon is not None:
+				self.current_weapon.reload()
+				invoke(self.ui_handler.update_ammo, delay=1)
 			
 		
 		if key == 'left mouse down':
@@ -296,7 +299,7 @@ class Player(Entity):
 		# # Apply recoil to the player's camera
 		if self.current_weapon is not None:
 			if self.current_weapon.is_shooting:
-				self.controller.rotation_x = lerp(self.controller.rotation_x, self.recoil[0], 8 * time.dt)
+				self.controller.camera_pivot.rotation_x = lerp(self.controller.camera_pivot.rotation_x, self.recoil[0], 8 * time.dt)
 				self.controller.camera_pivot.rotation_y = lerp(self.controller.camera_pivot.rotation_y, self.recoil[1], 8 * time.dt)
 				self.recoil = lerp(self.recoil, (0,0), 8 * time.dt)
 				self.send_location_update()
@@ -321,7 +324,7 @@ class Player(Entity):
 					self.recoil = self.current_weapon.calc_recoil()
 					# self.controller.camera_pivot.animate('rotation_x', self.controller.camera_pivot.rotation_x + self.recoil[0], duration=0.03, curve=curve.in_bounce)
 					# self.controller.animate('rotation_y', self.controller.rotation_y + self.recoil[1], duration=0.03, curve=curve.in_bounce)
-					invoke(self.disable_recoil, delay=0.05)
+					invoke(self.disable_recoil, delay=0.07)
 					self.current_weapon.is_shooting = True
 					request = self.build_request("shoot", hit_player=shoot_data)
 					self.sock.sendall(request.encode())
@@ -350,6 +353,8 @@ class Player(Entity):
 		self.health = 100
 		for weapon in self.weapon_inventory:
 			weapon.reset()
+		
+		self.equip_weapon(0)
 
 	def send_respawn(self):
 		request = self.build_request("respawn")

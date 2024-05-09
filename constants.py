@@ -41,4 +41,4 @@ TIMEOUT_TIME = 2
 # Player constants
 SPAWN_POS = Vec3(0, 0, 0)
 SPAWN_ROT = Vec3(0, 0, 0)
-
+RESPAWN_TIME = 3

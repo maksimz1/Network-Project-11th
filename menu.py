@@ -186,8 +186,6 @@ class MenuManager:
         self.current_menu.enabled = False
         self.client.respawn_player()
         
-        
-
     def show_main_menu(self):
         self.change_menu(self.menu)
         self.menu.animate_menu()
