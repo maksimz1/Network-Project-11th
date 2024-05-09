@@ -288,18 +288,21 @@ class Player(Entity):
 				if self.current_weapon.fire_mode == "full":
 					
 					if self.current_weapon is not None:
-						self.current_weapon.is_shooting = True
 						self.shoot_weapon()
 		else:
 			if self.current_weapon is not None:
 				self.current_weapon.is_shooting = False
 
 		# # Apply recoil to the player's camera
-		# if self.current_weapon is not None:
-		# 	if self.current_weapon.is_shooting:
-		# 		self.current_weapon.apply_recoil(time.dt, self.controller)
-		# 	else:
-		# 		self.current_weapon.target_recoil = (0,0)
+		if self.current_weapon is not None:
+			if self.current_weapon.is_shooting:
+				self.controller.rotation_x = lerp(self.controller.rotation_x, self.recoil[0], 8 * time.dt)
+				self.controller.camera_pivot.rotation_y = lerp(self.controller.camera_pivot.rotation_y, self.recoil[1], 8 * time.dt)
+				self.recoil = lerp(self.recoil, (0,0), 8 * time.dt)
+				self.send_location_update()
+				
+				
+
 
 		self.prev_location = self.controller.position
 		self.prev_rotation = self.controller.rotation
@@ -315,11 +318,11 @@ class Player(Entity):
 				self.ui_handler.update_ammo()
 				
 				if shoot_data is not False:
-					calc_recoil = self.current_weapon.calc_recoil()
-					# self.controller.camera_pivot.animate('rotation_x', self.controller.rotation_x + calc_recoil[0], duration=0.03, curve=curve.in_bounce)
-					# self.controller.animate('rotation_y', self.controller.rotation_y + calc_recoil[1], duration=0.03, curve=curve.in_bounce)
-					camera.shake(duration=0.1, magnitude=calc_recoil[0])
-					# self.controller.camera_pivot.shake(duration=0.03, magnitude=calc_recoil[1], speed=calc_recoil[0])
+					self.recoil = self.current_weapon.calc_recoil()
+					# self.controller.camera_pivot.animate('rotation_x', self.controller.camera_pivot.rotation_x + self.recoil[0], duration=0.03, curve=curve.in_bounce)
+					# self.controller.animate('rotation_y', self.controller.rotation_y + self.recoil[1], duration=0.03, curve=curve.in_bounce)
+					invoke(self.disable_recoil, delay=0.05)
+					self.current_weapon.is_shooting = True
 					request = self.build_request("shoot", hit_player=shoot_data)
 					self.sock.sendall(request.encode())
 				
@@ -358,6 +361,9 @@ class Player(Entity):
 		self.sock.sendall(request.encode())
 		# Closes the application on client side, lets server side know of disconnect
 		self.game_running = False
+
+	def disable_recoil(self):
+		self.recoil = (0,0)
 
 
 class Client(Entity):

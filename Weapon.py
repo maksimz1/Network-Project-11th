@@ -114,8 +114,8 @@ class Weapon(Entity):
 		# self.ammo_text.text = f'{self.current_ammo}/{self.ammo}'
 	
 	def calc_recoil(self):
-		value_x = random.uniform(-self.recoil * 5, self.recoil * 10)  / 3
-		value_y = random.uniform(-self.recoil * 5, self.recoil * 10) / 3
+		value_x = random.uniform(-self.recoil * 15, self.recoil * 15) 
+		value_y = random.uniform(-self.recoil * 15, self.recoil * 15) 
 
 		print((value_x, value_y))
 		return (value_x, value_y)

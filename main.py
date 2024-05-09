@@ -5,8 +5,7 @@ from direct.filter.CommonFilters import CommonFilters
 if __name__ == '__main__':
     app = Ursina()
 
-    filters = CommonFilters(app.win, app.cam)
-    filters.set_cartoon_ink(1)
+    
 
     # Create a window
     window.title = "Chicken Fight"
@@ -14,7 +13,8 @@ if __name__ == '__main__':
     window.fullscreen = False
     window.exit_button.visible = False
 
-    
+    filters = CommonFilters(app.win, app.cam)
+    filters.set_cartoon_ink(1)
     # filters.setCartoonInk(separation=2)
 
     # Load the menus
