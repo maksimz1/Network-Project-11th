@@ -390,33 +390,42 @@ class Client(Entity):
 		self.menu_manager = menu_manager
 
 
+
 	def start_game(self):
 		
 		# Create a socket and connect to the server
-		player_id = self.create_connection()
-		self.player = Player(player_id=player_id, sock=self.sock, parent=self)
-		
-		
+		# self.create_connection()
+		# player_id = self.create_connection()
+		self.player = Player(player_id=self.player_id, sock=self.sock, parent=self)
+
 		listen_thread = threading.Thread(target=self.listen)
 		listen_thread.start()
+
+	def handshake(self):
+		while True:
+			data = self.sock.recv(65535)
+			if data:
+				data = json.loads(data.decode())
+				if data['request'] == 'hello_accept':
+					self.player_id = data['player_id']
+					return True
+				elif data['request'] == 'hello_reject':
+					print("Connection to server rejected")
+					return False
+				elif data['request'] == 'map_change':
+					return data['map']
+
 
 	def respawn_player(self):
 		self.player.send_respawn()
 
 	def create_connection(self):
-		# Create a UDP socket and connect to the server
-		self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		self.sock.settimeout(constants.TIMEOUT_TIME)
-		self.sock.connect((SERVER_IP, SERVER_UDP_PORT))
+		if self.sock is None:
+			# Create a UDP socket and connect to the server
+			self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+			self.sock.settimeout(constants.TIMEOUT_TIME)
+			self.sock.connect((SERVER_IP, SERVER_UDP_PORT))
 		self.send_hello()
-
-		# Get the player's ID
-		while True:
-			data = self.sock.recv(65535)
-			if data:
-				data = json.loads(data.decode())
-				return data['player_id']
-			
 	
 	def send_hello(self):
 		player_pos = constants.SPAWN_POS
@@ -426,6 +435,7 @@ class Client(Entity):
 		request = json.dumps(
 			{
 				"request": "hello",
+				'map': self.map,
 				"player_pos": [player_pos.x, player_pos.y, player_pos.z],
 				"player_rotation": [player_rot.x, player_rot.y, player_rot.z],
 				"camera_rotation": [camera_rot.x, camera_rot.y, camera_rot.z]
@@ -479,6 +489,11 @@ class Client(Entity):
 			if entity != self.player:
 				destroy(entity)
 	
+	def set_map(self, map_name):
+		self.unload_map()
+		self.load_map(map_name)
+		self.map = map_name
+
 	def unload_players(self):
 		for player in self.player.connected_players.values():
 			player.enabled = False
@@ -489,18 +504,19 @@ class Client(Entity):
 
 	def listen(self):
 		while True:
-			if not self.player.game_running:
-				self.player.sock.close()
-				break
-			else:
-				try:
-					data, addr = self.player.sock.recvfrom(65535)
-					if addr == (SERVER_IP, SERVER_UDP_PORT) and data:
-						self.handle_request(data)
-				except socket.timeout:
-					# Close game, no connection to server
-					print("Connection to server lost")
-					self.player.send_disconnect()				
+			if self.player is not None:
+				if not self.player.game_running:
+					self.player.sock.close()
+					break
+			try:
+				data, addr = self.sock.recvfrom(65535)
+				# data, addr = self.player.sock.recvfrom(65535)
+				if addr == (SERVER_IP, SERVER_UDP_PORT) and data:
+					self.handle_request(data)
+			except socket.timeout:
+				# Close game, no connection to server
+				print("Connection to server lost")
+				self.player.send_disconnect()				
 	
 	def add_player(self, player_id, player_pos, player_rotation):
 		self.player.connected_players[player_id] = OtherPlayer(player_id, player_pos, player_rotation, parent=self)
@@ -508,7 +524,9 @@ class Client(Entity):
 	def handle_request(self, data):
 		data = json.loads(data.decode())
 		if data['request'] == 'hello_accept':
-			self.player.player_id = data['player_id']
+			self.player_id = data['player_id']
+			self.player = Player(player_id=self.player_id, sock=self.sock, parent=self)
+			# self.player.player_id = data['player_id']
 
 			print(f"Player {self.player.player_id} connected")
 

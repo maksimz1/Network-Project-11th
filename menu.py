@@ -12,6 +12,8 @@ class MainMenu(Entity):
         self.change_map_button = Button(text="Choose Map", scale=(0.2,0.07), origin=(0,0), y=-0.1, color=color.red,font = "Assets/Fonts/FlyingBird.ttf", parent = self)
         self.quit_button = Button(text="Quit", scale=(0.2,0.07), origin=(0,0), y=-.2, color=color.red,font = "Assets/Fonts/FlyingBird.ttf", parent = self)
 
+        self.change_map_notification = Text("Selected map unavalible", origin=(0,0), x=0, y=.4, size=0.05, font="Assets/Fonts/FlyingBird.ttf", color=color.red, parent=self)
+        self.change_map_notification.alpha = 0
         # Set button callbacks
         self.play_button.on_click = self.Play
         self.change_map_button.on_click = self.ChangeMap
@@ -54,6 +56,11 @@ class MainMenu(Entity):
 
     def Quit(self):
         self.manager.quit()
+    
+    def alert_map_unavalible(self, map):
+        self.change_map_notification.text = f"Selected map unavalible, switch to {map}"
+        self.change_map_notification.fade_in(duration=1, curve=curve.out_quad)
+        self.change_map_notification.fade_out(duration=1, delay=2, curve=curve.out_quad)
 
 class DeathScreen(Entity):
     def __init__(self, manager):
@@ -111,6 +118,9 @@ class MapMenu(Entity):
         # Create map selected visual
         self.selection = Entity(model="cube", scale=(0.25,0.07), x=.3, color=color.green, parent=self)
 
+        # Text for alerting user of selected map
+        self.selected_text = Text("Selected Map: ", origin=(0,0), x=-.3, y=.4, size=0.05, font="Assets/Fonts/FlyingBird.ttf", color=color.blue, parent=self)
+
         # Set default selected map
         self.selection.y = self.map1.y
         self.selected_map = 'map1'
@@ -142,20 +152,20 @@ class MapMenu(Entity):
     def PlayMap1(self):
         self.selection.y = self.map1.y
         self.selected_map = 'map1'
-        self.manager.client.unload_map()
-        self.manager.client.load_map('map1')
+        self.manager.client.set_map('map1')
+        self.selected_text.text = f"Selected Map: {self.selected_map}"
     
     def PlayMap2(self):
         self.selection.y = self.map2.y
         self.selected_map = 'map2'
-        self.manager.client.unload_map()
-        self.manager.client.load_map('map2')
+        self.manager.client.set_map('map2')
+        self.selected_text.text = f"Selected Map: {self.selected_map}"
 
     def PlayMap3(self):
         self.selection.y = self.map3.y
         self.selected_map = 'map3'
-        self.manager.client.unload_map()
-        self.manager.client.load_map('map3')
+        self.manager.client.set_map('map3')
+        self.selected_text.text = f"Selected Map: {self.selected_map}"
 
 class MenuManager:
     def __init__(self):
@@ -177,9 +187,20 @@ class MenuManager:
         self.animation = CameraAnimator(camera)
 
     def run_client(self):
-        self.current_menu.enabled = False
-        self.client.start_game()
-        self.animation.enabled = False
+        self.client.create_connection()
+        response = self.client.handshake()
+        if response is True:
+            # Connection successful
+            self.client.start_game()
+            self.current_menu.enabled = False
+            self.animation.enabled = False
+        elif response is False:
+            # Connection failed
+            self.quit()
+        else:
+            # Connection denied due to unavailable map
+            self.menu.alert_map_unavalible(response)
+
     
     def respawn(self):
         self.animation.enabled = False
@@ -207,6 +228,25 @@ class MenuManager:
     def quit(self):
         self.client.in_menu = False
         self.client.quit()
+
+class ServerListMenu(Entity):
+    # Scrollable list of servers with option to create and join a selected server
+    def __init__(self, manager):
+        super().__init__(
+            parent = camera.ui
+        )
+
+        self.manager = manager
+
+        self.title = Text("Server List", origin=(0,0), x=0, y=.3, size=0.065, font="Assets/Fonts/FlyingBird.ttf", color=color.blue, parent=self)
+        self.server_list = ButtonList(parent=self, y=0)
+
+        self.create_server_button = Button(text="Create Server", scale=(0.2,0.07), origin=(0,0), y=-.3, color=color.red, font="Assets/Fonts/FlyingBird.ttf", parent=self)
+        self.back_button = Button(text="Back", scale=(0.2,0.07), origin=(0,0), y=-.4, color=color.red, font="Assets/Fonts/FlyingBird.ttf", parent=self)
+
+        self.create_server_button.on_click = self.CreateServer
+        self.back_button.on_click = self.Back
+
 
 class CameraAnimator(Entity):
     def __init__(self, camera):
@@ -238,7 +278,7 @@ class CameraAnimator(Entity):
     def update(self):
         self.animate_camera()
 
-        
+
 
 if __name__ == "__main__":
     app = Ursina()

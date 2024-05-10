@@ -1,3 +1,4 @@
+import random
 import socket
 import threading
 import json
@@ -18,6 +19,7 @@ class Player():
 		self.cam_rot = cam_rot
 		self.state = None
 		self.life_state = "alive"
+		self.kills = 0
 
 class Server():
 	def __init__(self):
@@ -33,6 +35,9 @@ class Server():
 		self.keep_alive_thread = threading.Thread(target=self.keep_alive)
 		self.keep_alive_thread.start()
 
+		self.active_map = None
+		self.room_owner = None
+
 
 	def handle_request(self, data, addr):
 		# print(f"Recieved data from {addr}")
@@ -41,26 +46,44 @@ class Server():
 		data = data.decode()
 		data = json.loads(data)
 		if data['request'] == 'hello':
-			new_player_id = self.generate_player_id()
-			player_pos = data['player_pos']
-			player_rot = data['player_rotation']
-			player_camera_rot = data['camera_rotation']
-			self.connected_players[new_player_id] = (Player(new_player_id, player_pos, player_rot, player_camera_rot, addr))
-			print(f"Player {new_player_id} connected from {addr}")
+			map = data['map']
+			if self.active_map == None:
+				self.active_map = map
 
-			request = json.dumps(
-				{
-					"request": "hello_accept",
-				    "player_id": new_player_id
-				 }
-			)
+			if self.active_map == map:
+				print(f"Map {map} is now active")
+				new_player_id = self.generate_player_id()
+				player_pos = data['player_pos']
+				player_rot = data['player_rotation']
+				player_camera_rot = data['camera_rotation']
+				self.connected_players[new_player_id] = (Player(new_player_id, player_pos, player_rot, player_camera_rot, addr))
+				if len(self.connected_players) == 1:
+					self.room_owner = new_player_id
+				print(f"Player {new_player_id} connected from {addr}")
 
-			self.sock.sendto(request.encode(), addr)
+				request = json.dumps(
+					{
+						"request": "hello_accept",
+						"player_id": new_player_id
+					}
+				)
 
-			self.broadcast_player_connection(self.connected_players[new_player_id])
+				self.sock.sendto(request.encode(), addr)
 
-			# Send the data of all the connected players to the new player
-			self.send_player_list(addr)
+				self.broadcast_player_connection(self.connected_players[new_player_id])
+
+				# Send the data of all the connected players to the new player
+				self.send_player_list(addr)
+
+			elif self.active_map != map:
+				request = json.dumps(
+					{
+						"request": "map_change",
+						"map": self.active_map
+					}
+				)
+				self.sock.sendto(request.encode(), addr)
+				print(f"Player {addr} tried to join map {map}, but map {self.active_map} is active")
 
 
 		elif data['request'] == 'update_location':
@@ -79,9 +102,16 @@ class Server():
 
 		elif data['request'] == 'disconnect':
 			player_id = data['player_id']
-			self.broadcast_player_disconnect(player_id)
 			print(f"Player {player_id} disconnected")
+			self.broadcast_player_disconnect(player_id)
 			del self.connected_players[player_id]
+			if player_id is self.room_owner:
+				if len(self.connected_players) > 0:
+					self.room_owner = random.choice(list(self.connected_players.values()))
+				else:
+					self.room_owner = None
+					self.active_map = None			
+			
 		
 		elif data['request'] == 'switch_weapon':
 			player_id = data['player_id']
@@ -130,6 +160,8 @@ class Server():
 			}
 		)
 		for player in self.connected_players.values():
+			if player.id == data.id:
+				continue
 			self.sock.sendto(request.encode(), player.address)
 		
 	def broadcast_player_disconnect(self, player_id):
@@ -230,8 +262,6 @@ class Server():
 		
 	def generate_player_id(self):
 		# Generate a new player id
-		# Account for the fact that players can leave
-		# and the id can be reused
 		new_player_id = 0
 		while new_player_id in self.connected_players:
 			new_player_id += 1
@@ -249,7 +279,18 @@ class Server():
 			try:
 				data, addr = self.sock.recvfrom(65535)
 			except ConnectionResetError:
-				# print("Prloblem")
+				print(f"Prloblem with connection from {addr}, disconnecting")
+				# Disconnect the player
+				player = self.get_player_by_address(addr)
+				if player:
+					request = json.dumps(
+						{
+							"request": "disconnect",
+							"player_id": player.id
+						}
+					)
+					self.broadcast_player_disconnect(player.id)
+					del self.connected_players[player.id]
 				continue
 			if data:
 				# Handle the request
@@ -267,8 +308,7 @@ class Server():
 				)
 				self.sock.sendto(request.encode(), player.address)
 			time.sleep(constants.KEEP_ALIVE_TIME)
-
-
+	
 def main():
 	server = Server()
 	server.communication_handle()

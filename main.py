@@ -13,10 +13,6 @@ if __name__ == '__main__':
     window.fullscreen = False
     window.exit_button.visible = False
 
-    filters = CommonFilters(app.win, app.cam)
-    filters.set_cartoon_ink(1)
-    # filters.setCartoonInk(separation=2)
-
     # Load the menus
     menu_manager = MenuManager()
     menu_manager.show_main_menu()
