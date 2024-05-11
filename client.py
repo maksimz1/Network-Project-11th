@@ -90,19 +90,19 @@ class Player(Entity):
 		self.respawn_cooldown = False
 
 		
-	def create_connection(self):
+	# def create_connection(self):
 
-		# Create a UDP socket and connect to the server
-		self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		self.sock.settimeout(constants.TIMEOUT_TIME)
-		self.sock.connect((SERVER_IP, SERVER_UDP_PORT))
-		self.send_hello()
-		# Save the player's ID
-		while self.player_id is None:
-			data = self.sock.recv(65535)
-			if data:
-				data = json.loads(data.decode())
-				self.player_id = data['player_id']
+	# 	# Create a UDP socket and connect to the server
+	# 	self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+	# 	self.sock.settimeout(constants.TIMEOUT_TIME)
+	# 	self.sock.connect((SERVER_IP, SERVER_UDP_PORT))
+	# 	self.send_hello()
+	# 	# Save the player's ID
+	# 	while self.player_id is None:
+	# 		data = self.sock.recv(65535)
+	# 		if data:
+	# 			data = json.loads(data.decode())
+	# 			self.player_id = data['player_id']
 
 	def change_fov(self, fov):
 		camera.fov = lerp(camera.fov, fov, 8 * time.dt)
@@ -299,7 +299,7 @@ class Player(Entity):
 		# # Apply recoil to the player's camera
 		if self.current_weapon is not None:
 			if self.current_weapon.is_shooting:
-				self.controller.camera_pivot.rotation_x = lerp(self.controller.camera_pivot.rotation_x, self.recoil[0], 8 * time.dt)
+				self.controller.rotation_x = lerp(self.controller.rotation_x, self.recoil[0], 8 * time.dt)
 				self.controller.camera_pivot.rotation_y = lerp(self.controller.camera_pivot.rotation_y, self.recoil[1], 8 * time.dt)
 				self.recoil = lerp(self.recoil, (0,0), 8 * time.dt)
 				self.send_location_update()
@@ -381,6 +381,7 @@ class Client(Entity):
 
 		self.create_environment()
 		self.player = None
+		self.player_id = None
 
 		camera.z -= 20
 		camera.y += 10
@@ -392,14 +393,20 @@ class Client(Entity):
 
 
 	def start_game(self):
-		
 		# Create a socket and connect to the server
 		# self.create_connection()
 		# player_id = self.create_connection()
-		self.player = Player(player_id=self.player_id, sock=self.sock, parent=self)
 
+		while self.player_id is None:
+			pass
+
+		print(f"Got player id {self.player_id}")
+		self.player = Player(player_id=self.player_id, sock=self.sock, parent=self)
+		
 		listen_thread = threading.Thread(target=self.listen)
 		listen_thread.start()
+
+		
 
 	def handshake(self):
 		while True:
@@ -424,7 +431,7 @@ class Client(Entity):
 			# Create a UDP socket and connect to the server
 			self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 			self.sock.settimeout(constants.TIMEOUT_TIME)
-			self.sock.connect((SERVER_IP, SERVER_UDP_PORT))
+			self.sock.connect((self.ip, self.port))
 		self.send_hello()
 	
 	def send_hello(self):
@@ -511,7 +518,7 @@ class Client(Entity):
 			try:
 				data, addr = self.sock.recvfrom(65535)
 				# data, addr = self.player.sock.recvfrom(65535)
-				if addr == (SERVER_IP, SERVER_UDP_PORT) and data:
+				if addr == (self.ip, self.port) and data:
 					self.handle_request(data)
 			except socket.timeout:
 				# Close game, no connection to server
@@ -525,7 +532,7 @@ class Client(Entity):
 		data = json.loads(data.decode())
 		if data['request'] == 'hello_accept':
 			self.player_id = data['player_id']
-			self.player = Player(player_id=self.player_id, sock=self.sock, parent=self)
+			# self.player = Player(player_id=self.player_id, sock=self.sock, parent=self)
 			# self.player.player_id = data['player_id']
 
 			print(f"Player {self.player.player_id} connected")

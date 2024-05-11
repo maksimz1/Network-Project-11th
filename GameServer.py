@@ -22,21 +22,26 @@ class Player():
 		self.kills = 0
 
 class Server():
-	def __init__(self):
+	def __init__(self, port):
 		# Initialize game environment
 		# connected_players - dictionary to store the data of each player alongside their address
 		self.connected_players = {}
 
 		# Initialize the socket
 		self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		self.sock.bind((HOST_IP, HOST_UDP_PORT))
-		print("Server started")
+		self.sock.bind((HOST_IP, port))
+		print(f"Server started on {HOST_IP}:{port}")
 
 		self.keep_alive_thread = threading.Thread(target=self.keep_alive)
 		self.keep_alive_thread.start()
 
 		self.active_map = None
 		self.room_owner = None
+
+		self.running = True
+
+		self.communication_thread = threading.Thread(target=self.communication_handle)
+		self.communication_thread.start()
 
 
 	def handle_request(self, data, addr):
@@ -69,6 +74,7 @@ class Server():
 				)
 
 				self.sock.sendto(request.encode(), addr)
+				# print(f"Sent data to {addr} -> {request}")
 
 				self.broadcast_player_connection(self.connected_players[new_player_id])
 
@@ -274,7 +280,7 @@ class Server():
 		return None
 
 	def communication_handle(self):
-		while True:
+		while self.running:
 			# Recieve data using recv_by_size
 			try:
 				data, addr = self.sock.recvfrom(65535)
@@ -292,6 +298,7 @@ class Server():
 					self.broadcast_player_disconnect(player.id)
 					del self.connected_players[player.id]
 				continue
+			# print(f"Recieved data from {addr} -> {data}")
 			if data:
 				# Handle the request
 				self.handle_request(data, addr)
@@ -309,9 +316,9 @@ class Server():
 				self.sock.sendto(request.encode(), player.address)
 			time.sleep(constants.KEEP_ALIVE_TIME)
 	
-def main():
-	server = Server()
-	server.communication_handle()
+# def main():
+# 	server = Server()
+	# server.communication_handle()
 	
-if __name__ == '__main__':
-	main()
+# if __name__ == '__main__':
+# 	main()
