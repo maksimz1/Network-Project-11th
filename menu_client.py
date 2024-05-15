@@ -44,29 +44,21 @@ class MenuClient:
         
         print("Menu client stopped")
         
-        # if not self.inMenu:
-        #     self.sock.close()
-        #     # print("Menu client stopped")
-        #     return
+        if not self.inMenu:
+            self.sock.close()
+            # print("Menu client stopped")
+            return
 
     def handle_reply(self, data):
         data = json.loads(data)
-        # print(f"Received data: {data}")
 
         if data['response'] == 'lobby_list':
             self.manager.lobbies = data['lobbies']
-            # Beautiful print for each lobby
-            # for lobby in self.manager.lobbies:
-            #     print(f"Lobby ID: {lobby['lobby_id']} - Map: {lobby['map']} - Players: {lobby['players']}")
-
 
         elif data['response'] == 'lobby_created':
-            # print(f"Lobby created: {data['lobby_id']} - {data['map']} - {data['port']}")
             self.get_lobby_list()
 
         elif data['response'] == 'lobby_joined':
-            # self.manager.client.port = data['port']
-            # self.manager.client.map = data['map']
             self.inMenu = False
             print("Stopping menu client")
             return

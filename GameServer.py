@@ -132,7 +132,6 @@ class Server():
 			player_id = data['player_id']
 			weapon_type = data['weapon_type']
 			hit_player = data['hit_player']
-			
 			# Check if shot player is valid and is alive
 			# if hit_player in self.connected_players and self.connected_players[hit_player].state == "alive":
 			if True:
@@ -298,7 +297,6 @@ class Server():
 					self.broadcast_player_disconnect(player.id)
 					del self.connected_players[player.id]
 				continue
-			# print(f"Recieved data from {addr} -> {data}")
 			if data:
 				# Handle the request
 				self.handle_request(data, addr)
@@ -316,9 +314,3 @@ class Server():
 				self.sock.sendto(request.encode(), player.address)
 			time.sleep(constants.KEEP_ALIVE_TIME)
 	
-# def main():
-# 	server = Server()
-	# server.communication_handle()
-	
-# if __name__ == '__main__':
-# 	main()

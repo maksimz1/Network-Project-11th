@@ -6,6 +6,7 @@ import traceback
 import networking
 import constants
 import GameServer
+import sys
 
 class Lobby:
     def __init__(self, port,lobby_id, map):
@@ -22,54 +23,60 @@ connected_players = []
 def handle_request(data, sock):
     global current_port
     global lobbies
-    data = json.loads(data)
+    print(f'Handling request: {data}')
+    try:
+        data = json.loads(data)
 
-    if data['request'] == 'create_lobby':
-        port = current_port + 3
-        current_port = port
-        lobby_id = data['lobby_id']
-        map = data['map']
-        lobbies[lobby_id] = Lobby(port, lobby_id, map)
-        lobbies[lobby_id].server = GameServer.Server(port)
-        # lobbies[lobby_id] = Lobby(port, lobby_id, map)
-        response = {
-            'response': 'lobby_created',
-            'port': port,
-            'lobby_id': lobby_id,
-            'map': map
-        }
-        networking.send_by_size(sock, json.dumps(response))
-        print(f'Lobby created: {lobby_id} - {map} - {port}')
-
-    elif data['request'] == 'join_lobby':
-        lobby_id = data['lobby_id']
-        if lobby_id in lobbies:
-            with lck:
-                lobbies[lobby_id].players.append(sock)
-            # lobbies[lobby_id].players.append(sock)
+        if data['request'] == 'create_lobby':
+            port = current_port + 3
+            current_port = port
+            lobby_id = data['lobby_id']
+            map = data['map']
+            lobbies[lobby_id] = Lobby(port, lobby_id, map)
+            lobbies[lobby_id].server = GameServer.Server(port)
+            # lobbies[lobby_id] = Lobby(port, lobby_id, map)
             response = {
-                'response': 'lobby_joined',
-                'port': lobbies[lobby_id].port,
-                'map': lobbies[lobby_id].map,
-                'lobby_id': lobby_id
+                'response': 'lobby_created',
+                'port': port,
+                'lobby_id': lobby_id,
+                'map': map
             }
             networking.send_by_size(sock, json.dumps(response))
-            print(f'Player joined lobby: {lobby_id}')
+            print(f'Lobby created: {lobby_id} - {map} - {port}')
 
-    elif data['request'] == 'lobby_list':
-        with lck:
-            lobby_list = [{
-                'lobby_id': lobby.lobby_id,
-                'map': lobby.map,
-                'players': len(lobby.players),
-                'port': lobby.port,
-            } for lobby in lobbies.values()]
-        response = {
-            'response': 'lobby_list',
-            'lobbies': lobby_list
-        }
-        networking.send_by_size(sock, json.dumps(response))
-        print(f'Lobby list sent')
+        elif data['request'] == 'join_lobby':
+            lobby_id = data['lobby_id']
+            if lobby_id in lobbies:
+                with lck:
+                    lobbies[lobby_id].players.append(sock)
+                # lobbies[lobby_id].players.append(sock)
+                response = {
+                    'response': 'lobby_joined',
+                    'port': lobbies[lobby_id].port,
+                    'map': lobbies[lobby_id].map,
+                    'lobby_id': lobby_id
+                }
+                networking.send_by_size(sock, json.dumps(response))
+                print(f'Player joined lobby: {lobby_id}')
+
+        elif data['request'] == 'lobby_list':
+            with lck:
+                lobby_list = [{
+                    'lobby_id': lobby.lobby_id,
+                    'map': lobby.map,
+                    'players': len(lobby.players),
+                    'port': lobby.port,
+                } for lobby in lobbies.values()]
+            response = {
+                'response': 'lobby_list',
+                'lobbies': lobby_list
+            }
+            networking.send_by_size(sock, json.dumps(response))
+            print(f'Lobby list sent')
+    except Exception as err:
+        print(f'Error in handle_request: {err}')
+        print(traceback.format_exc())
+        sys.exit(1)
 
 def handle_client(cli_sock, addr):
     print(f'New Client from {addr}')
@@ -77,10 +84,9 @@ def handle_client(cli_sock, addr):
     while True:
         try:
             data = networking.recv_by_size(cli_sock, return_type='string')
-            if data == b'':
+            if data == '':
                 print('Seems client disconnected')
                 break
-            print(data)
             handle_request(data, cli_sock)
 
         except socket.error as err:

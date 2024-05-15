@@ -37,6 +37,8 @@ def recv_by_size(sock, return_type="string"):
             return data.decode()
     except OSError:
         data = '' if return_type == "string" else b''
+    except ValueError:
+        data = '' if return_type == "string" else b''
     return data
 
 

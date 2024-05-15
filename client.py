@@ -12,9 +12,9 @@ import constants
 
 lit_with_shadows_shader.default_input['shadow_color'] = hsv(225, .24, .67, .65)
 
-# app = Ursina(borderless=False, fullscreen=False, window_title='Client', vsync=False)
-SERVER_IP = '127.0.0.1'
-SERVER_UDP_PORT = 7878
+app = Ursina(borderless=False, fullscreen=True, window_title='Client', vsync=False)
+SERVER_IP = constants.SERVER_IP
+SERVER_UDP_PORT = constants.SERVER_PORT
 
 PLAYER_SCALE = (1,1,1)
 PLAYER_COLLIDER_SCALE = (1,2.2,1)
@@ -266,7 +266,8 @@ class Player(Entity):
 		if key == 'left mouse down':
 			if self.current_weapon is not None:
 				self.shoot_weapon()
-		
+	
+
 	def update(self):
 		if not self.game_running:
 			application.quit()
@@ -409,6 +410,8 @@ class Client(Entity):
 		
 
 	def handshake(self):
+		# Create a UDP socket and connect to the server
+		# Receive the player id from the server
 		while True:
 			data = self.sock.recv(65535)
 			if data:
@@ -510,6 +513,7 @@ class Client(Entity):
 			player.enabled = True
 
 	def listen(self):
+		# Listen for incoming data from the server
 		while True:
 			if self.player is not None:
 				if not self.player.game_running:
@@ -517,7 +521,6 @@ class Client(Entity):
 					break
 			try:
 				data, addr = self.sock.recvfrom(65535)
-				# data, addr = self.player.sock.recvfrom(65535)
 				if addr == (self.ip, self.port) and data:
 					self.handle_request(data)
 			except socket.timeout:
@@ -529,42 +532,32 @@ class Client(Entity):
 		self.player.connected_players[player_id] = OtherPlayer(player_id, player_pos, player_rotation, parent=self)
 
 	def handle_request(self, data):
+		# Buisness logic for handling data from the server
 		data = json.loads(data.decode())
 		if data['request'] == 'hello_accept':
 			self.player_id = data['player_id']
-			# self.player = Player(player_id=self.player_id, sock=self.sock, parent=self)
-			# self.player.player_id = data['player_id']
-
 			print(f"Player {self.player.player_id} connected")
 
 		elif data['request'] == 'new_player':
-
 			if data['player_id'] == self.player.player_id:
 				return
 			print(f"New player connected {data['player_id']}")
-
 			player_id = data['player_id']
 			player_pos = Vec3(data['player_pos'][0], data['player_pos'][1], data['player_pos'][2])
 			player_rot = Vec3(data['player_rotation'][0], data['player_rotation'][1], data['player_rotation'][2])
-
 			self.add_player(player_id,player_pos, player_rot)
 			print(f"Player {player_id} connected")
 
 		elif data['request'] == 'players_list':
 			for player in data['players']:
-
 				if player['player_id'] == self.player.player_id:
 					continue
-
 				player_id = player['player_id']
 				player_pos = Vec3(player['player_pos'][0], player['player_pos'][1], player['player_pos'][2])
 				player_rot = Vec3(player['player_rotation'][0], player['player_rotation'][1], player['player_rotation'][2])
-
 				weapon_type = player['weapon']
-
 				self.add_player(player_id,player_pos, player_rot)
 				self.player.connected_players[player_id].equip(weapon_type)
-
     
 				if self.player.connected_players[player_id].current_weapon is not None:
 					weapon_rotation = cam2gun_rot(player['camera_rotation'])
@@ -575,27 +568,19 @@ class Client(Entity):
 				return
 			elif data['player_id'] not in self.player.connected_players:
 				self.add_player(data['player_id'], data['player_pos'], data['player_rotation'])
-
 			player_id = data['player_id']
 			player_state = data['player_state']
-
 			self.player.connected_players[player_id].position = data['player_pos']
 			self.player.connected_players[player_id].rotation = data['player_rotation']
 			if self.player.connected_players[player_id].current_weapon is not None:
 				weapon_rotation = cam2gun_rot(data['camera_rotation'])
 				self.player.connected_players[player_id].current_weapon.rotation = weapon_rotation + list(constants.WEAPON_ROTATION_OFFSET)
-
-				# self.player.connected_players[player_id].current_weapon.rotation = [data['camera_rotation'][1], data['camera_rotation'][2], -data['camera_rotation'][0]] + list(constants.WEAPON_ROTATION_OFFSET)
-
-   
 			if player_state == "moving" and self.player.connected_players[player_id].state != "moving":
 				self.player.connected_players[player_id].actor.loop('Run')
 				self.player.connected_players[player_id].state = "moving"
-
 			elif player_state == "idle" and self.player.connected_players[player_id].state != "idle":
 				self.player.connected_players[player_id].actor.loop('Idle')
 				self.player.connected_players[player_id].state = "idle"
-
 			elif player_state == "airborne" and self.player.connected_players[player_id].state != "airborne":
 				self.player.connected_players[player_id].actor.loop('Idle')
 				self.player.connected_players[player_id].state = "airborne"
@@ -662,21 +647,18 @@ class Client(Entity):
 						self.player.health -= WEAPONS[weapon_type]['damage']
 						if self.player.health <= 0:
 							print(f"You have been killed")
-
 							# Display the death screen
 							self.menu_manager.show_death_screen()
-							
 							self.player.death()
-
 							# Unload other players
 							self.unload_players()
 							# Notify the server of the death
 							self.player.send_death()
-
 					else:
 						print(f"You are already dead")
 	
 	def quit(self):
+		print("Quitting")
 		self.player.send_disconnect()
 
 class OtherPlayer(Entity):
@@ -685,8 +667,7 @@ class OtherPlayer(Entity):
 		self.shader = colored_lights_shader
 		self.actor = Actor('Assets/Models/Chicken.gltf')
 		self.actor.reparent_to(self)
-		
-		
+
 		self.player_id = player_id
 		self.position = player_pos
 		self.rotation = Vec3(player_rotation[0], player_rotation[1], player_rotation[2])
@@ -712,6 +693,7 @@ class OtherPlayer(Entity):
 		if weapon_type in self.weapons_inventory:
 			self.current_weapon = self.weapons_inventory[weapon_type]
 			self.current_weapon.enabled = True
+	
 
 # def main():
 # 	client = Client()
