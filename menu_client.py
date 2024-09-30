@@ -24,11 +24,13 @@ class MenuClient:
         self.sock.settimeout(constants.TIMEOUT_TIME)
 
         self.inMenu = True
-        self.manager = manager 
+        self.manager = manager
+
+        # Is still waiting for the lobby list response, used to delay the menu loading
+        self.wait_for_list = False
 
         self.listen_thread = threading.Thread(target=self.listen)
         self.listen_thread.start()
-
 
     def listen(self):
         while self.inMenu:
@@ -54,6 +56,7 @@ class MenuClient:
 
         if data['response'] == 'lobby_list':
             self.manager.lobbies = data['lobbies']
+            self.wait_for_list = False
 
         elif data['response'] == 'lobby_created':
             self.get_lobby_list()
@@ -83,6 +86,7 @@ class MenuClient:
             'request': 'lobby_list'
         }
         networking.send_by_size(self.sock, json.dumps(request))
+        self.wait_for_list = True
 
     
         

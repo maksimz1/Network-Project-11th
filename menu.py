@@ -232,7 +232,8 @@ class MenuManager:
         self.map_selection.animate_menu()
     
     def show_server_list(self):
-        self.server_list.update_server_list(self.lobbies)
+        print("DEBUG: Showing Server List")
+        self.server_list.update_server_list()
         self.change_menu(self.server_list)
         self.server_list.animate_menu()
 
@@ -302,11 +303,16 @@ class ServerListMenu(Entity):
             print("Started Client")
             self.manager.run_client()
     
-    def update_server_list(self, servers):
-        print(f"Updating server list: {servers}")
+    def update_server_list(self):
+        # Request the current lobby list
         self.manager.menuClient.get_lobby_list()
+        # Wait for a response
+        while self.manager.menuClient.wait_for_list:
+            print("DEBUG: Waiting for server list!!!")
+        servers = self.manager.lobbies
+        print("DEBUG: Got Servers!")
+        print(f"DEBUG: Updating server list: {servers}")
         for server in servers:
-            # self.servers[f'{server["lobby_id"]}    |    Players:{server["players"]}'] = Func(self.manager.menuClient.join_lobby, server["lobby_id"])
             self.servers_dict[f'{server["lobby_id"]}   |   Players:{server["players"]}   |   Map:{server["map"]}'] = Func(self.select_server, server)
         destroy(self.server_list)
         self.server_list = ButtonList(parent=self, button_dict=self.servers_dict, button_height=1.3, width = 0.7, y=.1)

@@ -12,7 +12,6 @@ import constants
 
 lit_with_shadows_shader.default_input['shadow_color'] = hsv(225, .24, .67, .65)
 
-app = Ursina(borderless=False, fullscreen=True, window_title='Client', vsync=False)
 SERVER_IP = constants.SERVER_IP
 SERVER_UDP_PORT = constants.SERVER_PORT
 
@@ -343,19 +342,22 @@ class Player(Entity):
 		mouse.visible = True
 
 	def respawn(self):
-		self.enabled = True
-		self.controller.enabled = True
-		self.controller.position = constants.SPAWN_POS
-		self.controller.rotation = constants.SPAWN_ROT
-		self.controller.camera_pivot.rotation = constants.SPAWN_ROT
-		camera.rotation = (0,0,0)
-		camera.position = (0,0,0)
+		try:
+			self.enabled = True
+			self.controller.enabled = True
+			self.controller.position = constants.SPAWN_POS
+			self.controller.rotation = constants.SPAWN_ROT
+			self.controller.camera_pivot.rotation = constants.SPAWN_ROT
+			camera.rotation = (0,0,0)
+			camera.position = (0,0,0)
 
-		self.health = 100
-		for weapon in self.weapon_inventory:
-			weapon.reset()
-		
-		self.equip_weapon(0)
+			self.health = 100
+			for weapon in self.weapon_inventory:
+				weapon.reset()
+			
+			self.equip_weapon(0)
+		except AssertionError:
+			self.respawn()
 
 	def send_respawn(self):
 		request = self.build_request("respawn")
@@ -379,7 +381,6 @@ class Client(Entity):
 		self.ip = ip
 		self.port = port
 		self.sock = None
-
 		self.create_environment()
 		self.player = None
 		self.player_id = None
@@ -517,7 +518,7 @@ class Client(Entity):
 		while True:
 			if self.player is not None:
 				if not self.player.game_running:
-					self.player.sock.close()
+					self.sock.close()
 					break
 			try:
 				data, addr = self.sock.recvfrom(65535)
@@ -605,6 +606,7 @@ class Client(Entity):
 				self.player.connected_players[player_id].enabled = True
 				print(f"Player {player_id} has respawned")
 			elif player_id == self.player.player_id:
+				
 				self.player.respawn()
 				self.load_players()
 				print(f"Player {player_id} has respawned")
@@ -659,7 +661,12 @@ class Client(Entity):
 	
 	def quit(self):
 		print("Quitting")
-		self.player.send_disconnect()
+		if self.player is not None:
+			self.player.send_disconnect()
+		else:
+			application.quit()
+		
+      
 
 class OtherPlayer(Entity):
 	def __init__(self, player_id, player_pos, player_rotation, **kwargs):
